@@ -1,0 +1,25 @@
+project:
+  name: flybrain-computer-interface
+  seed: 0
+
+data:
+  manifest: null
+  raw_directory: data/raw
+  processed_directory: data/processed
+
+runtime:
+  deterministic: true
+  device: cpu
+
+clocks:
+  neural_dt_ms: 0.1
+  visual_hz: 30.0
+  motor_hz: 25.0
+  reward_hz: 20.0
+  telemetry_hz: 10.0
+  optional_ai_hz: 1.0
+
+optional_ai:
+  enabled: false
+  semantic_provider: null
+  visual_provider: null
