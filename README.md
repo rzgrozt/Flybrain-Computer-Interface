@@ -9,10 +9,18 @@ computer actions.
 
 ## Current status
 
-The repository currently provides the project scaffold for Phase A: acquiring,
-validating, indexing, and normalizing MaleCNS data. Simulation, sensory, motor,
-plasticity, reward, and telemetry packages are explicit boundaries for later
-phases; they do not yet contain behavioral implementations.
+The first executable foundation is in place:
+
+- target-by-source SciPy CSR connectivity for CPU-first sparse propagation;
+- a small Brian2 reference backend using the published Shiu et al. LIF defaults;
+- deterministic synthetic spike stimulation and a propagation benchmark;
+- typed boundaries for sensory input, semantic goals, neural output, fixed motor
+  decoding, scalar reward, and non-blocking telemetry;
+- optional semantic and visual-support registries that are disabled by default.
+
+This is a synthetic validation network, not a MaleCNS simulation. No MaleCNS data
+has been loaded, no plasticity has been implemented, and no desktop-control API is
+connected.
 
 ## Development setup
 
@@ -29,6 +37,26 @@ uv run pytest
 uv run ruff check .
 uv run mypy src
 ```
+
+Run the deterministic reference benchmark with:
+
+```bash
+uv run python -m flybrain_interface.experiments.synthetic_reference --runs 3
+```
+
+The command prints measured runtime, per-neuron spikes, population rates, and the
+output of the fixed artificial motor decoder. It performs no operating-system action.
+
+## Architectural boundaries
+
+Semantic translators can return only structured goals. Optional visual evaluators
+can return only scalar reward signals. Neither interface exposes motor commands or
+cursor coordinates. The fixed motor decoder accepts only neural readout, preserving
+the rule that external models cannot select actions.
+
+Future LLM or VLM adapters can be registered behind these narrow interfaces without
+editing the simulation backend. No generative model or provider SDK is installed by
+default, and the base configuration keeps both optional support paths disabled.
 
 ## Data policy
 
@@ -50,3 +78,6 @@ Downloaded inputs belong in `data/raw/`, and normalized outputs belong in
 - `experiments`: reproducible experiment definitions and execution
 - `validation`: reference/runtime comparisons and scientific controls
 - `ai_support`: optional translation and evaluation fallbacks outside action selection
+
+Reviewed upstream sources and scientific limitations are recorded in
+[`docs/upstream.md`](docs/upstream.md).
