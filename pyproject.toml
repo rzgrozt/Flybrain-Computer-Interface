@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flybrain-interface"
+version = "0.1.0"
+description = "Artificial sensory and motor interfaces for the MaleCNS connectome"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "FlyBrain Computer Interface contributors" }]
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "mypy>=1.10",
+  "pytest>=8",
+  "ruff>=0.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["flybrain_interface"]
+mypy_path = "src"

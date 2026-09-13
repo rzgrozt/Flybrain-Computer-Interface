@@ -1,0 +1,48 @@
+# Local agent and editor state
+AGENTS.md
+.agents/
+.codex/
+.aider*
+.vscode/
+.idea/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.python-version
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Downloaded and generated scientific data
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Experiment outputs and runtime artifacts
+artifacts/
+outputs/
+runs/
+logs/
+*.log
+
+# Local upstream reference checkouts (record provenance, do not vendor blindly)
+external/
+
+# Operating-system files
+.DS_Store
+Thumbs.db
