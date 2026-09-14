@@ -140,6 +140,10 @@ under the ignored `runs/panel/` directory. It defaults to exact subnormal-drive
 preservation; the optional zeroing approximation is always explicit and recorded.
 See [`docs/experiment-panel.md`](docs/experiment-panel.md) for controls, limits,
 architecture, reproducibility fields, validation, and measured UI overhead.
+The panel also exposes annotation-grounded MaleCNS presets for R1-R6, ORN_DA1,
+JO-A1, all descending neurons, DNg13, and DNp01. The controlled 26-condition
+characterization, exact memberships, results, and scientific limits are documented
+in [`docs/sensory-descending-characterization-2026-09-14.md`](docs/sensory-descending-characterization-2026-09-14.md).
 
 ## Architectural boundaries
 
