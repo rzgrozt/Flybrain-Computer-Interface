@@ -47,8 +47,9 @@ uv run flybrain-panel \
   --port 8765
 ```
 
-The dependency-free browser UI is served by FastAPI; no Node.js or separate
-frontend build is required.
+The built browser assets are served by FastAPI, so launching the panel does not
+require Node.js or a second server. Rebuilding the isolated Three.js Brain View from
+source requires Node.js 22.18 or newer; see `docs/brain-view.md`.
 
 ## Experiment definition
 
@@ -62,6 +63,7 @@ worker. Limits are deliberately small:
 - telemetry: 1–30 Hz;
 - artificial stimulus targets: at most 256 unique neuron indices;
 - watchlist: at most 32 unique neuron indices;
+- Brain View activity selection: at most 4,096 unique neuron indices;
 - observation populations: at most 16, each with at most 4,096 indices;
 - stimulus amplitude: greater than 0 and at most 100 mV;
 - all timing must align to the 0.1 ms neural grid.

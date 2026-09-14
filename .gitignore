@@ -25,6 +25,7 @@ venv/
 htmlcov/
 build/
 dist/
+node_modules/
 *.egg-info/
 
 # Downloaded and generated scientific data

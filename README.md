@@ -144,6 +144,17 @@ The panel also exposes annotation-grounded MaleCNS presets for R1-R6, ORN_DA1,
 JO-A1, all descending neurons, DNg13, and DNp01. The controlled 26-condition
 characterization, exact memberships, results, and scientific limits are documented
 in [`docs/sensory-descending-characterization-2026-09-14.md`](docs/sensory-descending-characterization-2026-09-14.md).
+The integrated Brain View renders the pinned MaleCNS measured-soma atlas and maps
+bounded live simulated spike-count windows by exact body ID. See
+[`docs/brain-view.md`](docs/brain-view.md) for truthful coverage, signal semantics,
+frontend rebuild steps, graph-overlay limits, and verification.
+
+The Brain View adapts an attribution-required upstream template. This integration
+is modified from the original: Built with
+[fly-connectome-template](https://github.com/cobanov/fly-connectome-template) by
+[Mert Cobanov](https://github.com/cobanov). See the preserved
+[`Cobanov Template Attribution License 1.0`](third_party/fly-connectome-template/LICENSE)
+and [third-party notices](third_party/fly-connectome-template/THIRD_PARTY_NOTICES.md).
 
 ## Architectural boundaries
 
