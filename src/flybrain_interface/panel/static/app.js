@@ -1,0 +1,26 @@
+const $=id=>document.getElementById(id);let history=[],socket;
+const colors=['#c9f55f','#66d7ce','#ffac69','#c49cff'];
+function nums(value){return value.split(',').map(x=>Number(x.trim())).filter(Number.isInteger)}
+function statusName(s){return s?String(s).replaceAll('_',' '):'idle'}
+function update(t){
+  const s=t.status||'idle';$('status').className=`status ${s}`;$('status').querySelector('b').textContent=statusName(s);
+  $('simTime').textContent=(t.simulated_time_s||0).toFixed(3);$('progress').style.width=`${Math.min(100,100*(t.simulated_time_s||0)/(t.duration_s||1))}%`;
+  $('speed').textContent=t.speed_ratio==null?'—':`${t.speed_ratio.toFixed(2)}×`;$('wallTime').textContent=t.wall_elapsed_s==null?'sim / active wall':`${t.wall_elapsed_s.toFixed(2)} s wall elapsed`;$('spikes').textContent=(t.total_spikes||0).toLocaleString();
+  $('memory').textContent=t.process_rss_bytes?`${(t.process_rss_bytes/1048576).toFixed(0)} MiB`:'—';$('events').textContent=(t.pending_delayed_events||0).toLocaleString();
+  $('experiment').textContent=t.experiment_id||'—';$('loop').textContent=t.worker_loop_seconds==null?'—':`${t.worker_loop_seconds.toFixed(3)} s`;
+  $('dropped').textContent=(t.browser_frames_dropped||0).toLocaleString();$('ipcDropped').textContent=(t.ipc_telemetry_dropped_total||0).toLocaleString();$('edges').textContent=(t.visited_edges||0).toLocaleString();
+  const active=['running','paused'].includes(s);$('start').disabled=active;$('pause').disabled=!active;$('pause').textContent=s==='paused'?'Resume':'Pause';$('reset').disabled=!['running','paused','completed','failed'].includes(s);
+  if(t.error)$('error').textContent=t.error;
+  if(t.kind==='telemetry'){history.push(t);if(history.length>120)history.shift();drawRate();drawVoltage();renderWatch(t)}
+}
+function canvas(id){const c=$(id),d=devicePixelRatio||1,r=c.getBoundingClientRect();c.width=r.width*d;c.height=r.height*d;const x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);return [x,r.width,r.height]}
+function axes(x,w,h){x.strokeStyle='#263632';x.lineWidth=1;x.beginPath();for(let i=1;i<4;i++){let y=i*h/4;x.moveTo(0,y);x.lineTo(w,y)}x.stroke()}
+function plot(id,series){const [x,w,h]=canvas(id);x.clearRect(0,0,w,h);axes(x,w,h);const vals=series.flatMap(s=>s.values).filter(Number.isFinite),lo=Math.min(...vals,0),hi=Math.max(...vals,1);series.forEach((s,j)=>{x.strokeStyle=colors[j%colors.length];x.lineWidth=2;x.beginPath();s.values.forEach((v,i)=>{let px=i*w/Math.max(1,s.values.length-1),py=h-(v-lo)*h/(hi-lo);i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke()})}
+function drawRate(){const names=[...new Set(history.flatMap(t=>Object.keys(t.population_rates_hz||{})))];plot('rateChart',names.map(n=>({values:history.map(t=>t.population_rates_hz?.[n]||0)})));$('legend').innerHTML=names.map((n,i)=>`<span><i style="background:${colors[i%colors.length]}"></i>${n}</span>`).join('')||'No population samples yet.'}
+function drawVoltage(){const count=Math.max(0,...history.map(t=>(t.voltage_mv||[]).length));plot('voltageChart',Array.from({length:count},(_,i)=>({values:history.map(t=>t.voltage_mv?.[i]??NaN)})))}
+function renderWatch(t){$('watchValues').innerHTML=(t.watch_indices||[]).map((n,i)=>`<div><b>Neuron ${n}</b><span>${(t.voltage_mv?.[i]??0).toFixed(3)} mV · drive ${(t.synaptic_drive_mv?.[i]??0).toExponential(2)} mV</span></div>`).join('')||'<p>Watchlist is empty.</p>'}
+async function action(path,body){$('error').textContent='';try{const r=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:body?JSON.stringify(body):undefined});const d=await r.json();if(!r.ok)throw Error(d.detail||'Request failed')}catch(e){$('error').textContent=e.message}}
+$('start').onclick=()=>{const duration=Number($('duration').value),targets=nums($('targets').value),watch=nums($('watch').value),stop=Number($('stimStop').value);history=[];action('/api/experiments',{duration_s:duration,seed:Number($('seed').value),backend:'numba',subnormal_drive_policy:$('policy').value,chunk_duration_s:0.02,telemetry_hz:10,watch_indices:watch,populations:[{name:'stimulus targets',neuron_indices:targets}],stimulus:{neuron_indices:targets,start_s:0,stop_s:stop,interval_ms:Number($('interval').value),amplitude_mv:Number($('amplitude').value)}})};
+$('pause').onclick=()=>action(`/api/experiments/${$('pause').textContent==='Resume'?'resume':'pause'}`);$('reset').onclick=()=>action('/api/experiments/reset');
+$('policy').onchange=()=>{$('policyNote').textContent=$('policy').value==='preserve'?'Exact IEEE-754 subnormal decay is preserved. This is the scientific default and can become slow in long sparse runs.':'Tiny drive values below the normal float64 range are set to zero. This explicit numerical approximation can improve long sparse-run performance.'};
+function connect(){socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws/telemetry`);socket.onopen=()=>{$('connection').textContent='live'};socket.onmessage=e=>update(JSON.parse(e.data));socket.onclose=()=>{$('connection').textContent='reconnecting';setTimeout(connect,1000)}}connect();addEventListener('resize',()=>{drawRate();drawVoltage()});

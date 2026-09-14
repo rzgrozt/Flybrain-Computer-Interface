@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FlyBrain Experiment Panel</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <header>
+    <div><span class="eyebrow">MALECNS · LOCAL LAB</span><h1>Experiment panel</h1></div>
+    <div id="status" class="status idle"><span></span><b>Idle</b></div>
+  </header>
+  <main>
+    <section class="hero card">
+      <div><p class="kicker">Neural simulation</p><div class="clock"><strong id="simTime">0.000</strong><small>s simulated</small></div></div>
+      <div class="progress"><i id="progress"></i></div>
+      <div class="metrics primary">
+        <article><label>Speed</label><b id="speed">—</b><small id="wallTime">sim / active wall</small></article>
+        <article><label>Total activity</label><b id="spikes">0</b><small>spikes</small></article>
+        <article><label>Worker memory</label><b id="memory">—</b><small>RSS</small></article>
+        <article><label>Delayed events</label><b id="events">0</b><small>pending spikes</small></article>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card controls">
+        <div class="section-title"><div><p class="kicker">Protocol</p><h2>Controlled stimulus</h2></div><span class="safe">Bounded</span></div>
+        <div class="form-grid">
+          <label>Duration <span>s</span><input id="duration" type="number" value="1" min="0.01" max="60" step="0.01"></label>
+          <label>Target neurons <span>indices</span><input id="targets" value="0"></label>
+          <label>Pulse interval <span>ms</span><input id="interval" type="number" value="5" min="0.1" step="0.1"></label>
+          <label>Amplitude <span>mV</span><input id="amplitude" type="number" value="8" min="0.1" max="100" step="0.1"></label>
+          <label>Stimulus stop <span>s</span><input id="stimStop" type="number" value="0.05" min="0.0001" max="60" step="0.01"></label>
+          <label>Watchlist <span>indices</span><input id="watch" value="0"></label>
+          <label>Seed <span>integer</span><input id="seed" type="number" value="0" min="0"></label>
+          <label>Subnormal drive <span>policy</span><select id="policy"><option value="preserve">Preserve exact (default)</option><option value="zero">Zero tiny values (faster approximation)</option></select></label>
+        </div>
+        <p id="policyNote" class="note">Exact IEEE-754 subnormal decay is preserved. This is the scientific default and can become slow in long sparse runs.</p>
+        <div class="buttons"><button id="start" class="accent">Start experiment</button><button id="pause" disabled>Pause</button><button id="reset" disabled>Reset</button></div>
+        <p id="error" role="alert"></p>
+      </div>
+
+      <div class="card chart-card">
+        <div class="section-title"><div><p class="kicker">Bounded telemetry</p><h2>Population rate</h2></div><span>Hz / neuron</span></div>
+        <canvas id="rateChart"></canvas>
+        <div id="legend" class="legend"></div>
+      </div>
+
+      <div class="card chart-card watch-card">
+        <div class="section-title"><div><p class="kicker">Watchlist</p><h2>Selected neural state</h2></div><span>latest values</span></div>
+        <canvas id="voltageChart"></canvas>
+        <div id="watchValues" class="watch-values"><p>No samples yet.</p></div>
+      </div>
+
+      <div class="card diagnostics">
+        <div class="section-title"><div><p class="kicker">Engineering</p><h2>Runtime diagnostics</h2></div><span id="connection">connecting…</span></div>
+        <dl>
+          <div><dt>Experiment</dt><dd id="experiment">—</dd></div>
+          <div><dt>Worker loop</dt><dd id="loop">—</dd></div>
+          <div><dt>Browser frames dropped</dt><dd id="dropped">0</dd></div>
+          <div><dt>Worker telemetry dropped</dt><dd id="ipcDropped">0</dd></div>
+          <div><dt>Edges visited</dt><dd id="edges">0</dd></div>
+        </dl>
+        <p class="disclaimer">Population names and stimulation targets are researcher-defined engineering assignments. They do not assert biological function. This panel observes and stimulates MaleCNS; it does not select behavior or control the desktop.</p>
+      </div>
+    </section>
+  </main>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

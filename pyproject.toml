@@ -12,20 +12,29 @@ authors = [{ name = "FlyBrain Computer Interface contributors" }]
 dependencies = [
     "brian2>=2.9.0",
     "duckdb>=1.5.5",
+    "fastapi>=0.116",
     "numba>=0.61",
     "numpy>=1.26,<2.4",
+    "psutil>=7.0",
     "pyarrow>=25.0.1",
     "scipy>=1.17.1",
+    "uvicorn>=0.35",
+    "websockets>=15.0",
 ]
 
 [project.scripts]
 flybrain-data = "flybrain_interface.connectome_data.cli:main"
+flybrain-panel = "flybrain_interface.panel.cli:main"
+
+[tool.setuptools.package-data]
+flybrain_interface = ["panel/static/*"]
 
 [dependency-groups]
 dev = [
   "mypy>=1.10",
   "pytest>=8",
   "ruff>=0.9",
+  "types-psutil>=7.0",
 ]
 
 [tool.setuptools.packages.find]
