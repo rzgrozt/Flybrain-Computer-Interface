@@ -123,6 +123,24 @@ CPU subnormal-arithmetic cliff without changing global floating-point state. See
 [`docs/subnormal-drive-policy-2026-09-14.md`](docs/subnormal-drive-policy-2026-09-14.md)
 for the measured tradeoff and opt-in commands.
 
+## Local experiment panel
+
+A lightweight local FastAPI/WebSocket panel can start, pause, resume, and reset a
+bounded MaleCNS experiment while showing compact population and watchlist
+telemetry from an isolated simulation worker:
+
+```bash
+uv sync --all-groups
+uv run flybrain-panel \
+  --data-directory /home/ruzgar/Flybrain-Computer-Interface/data/processed/malecns-v1.0
+```
+
+Open <http://127.0.0.1:8000>. The panel binds to loopback only and writes manifests
+under the ignored `runs/panel/` directory. It defaults to exact subnormal-drive
+preservation; the optional zeroing approximation is always explicit and recorded.
+See [`docs/experiment-panel.md`](docs/experiment-panel.md) for controls, limits,
+architecture, reproducibility fields, validation, and measured UI overhead.
+
 ## Architectural boundaries
 
 Semantic translators can return only structured goals. Optional visual evaluators
