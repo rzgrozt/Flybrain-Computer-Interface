@@ -138,8 +138,8 @@ def benchmark_full_network(
         },
         "scenarios": scenarios,
         "limitations": [
-            "Scenario execution includes reset, threshold detection, delay handling, "
-            "and legacy all-neuron spike-history construction.",
+            "Scenario execution includes threshold detection and delay handling but "
+            "uses the default summary-only chunk recorder.",
             "First prepare time includes disk-cache loading or compilation and is "
             "process-dependent.",
             "Dense stress input is an engineering load case, not physiological data.",
@@ -174,7 +174,7 @@ def _benchmark_scenario(
     # One unreported warm-up controls page faults and allocator initialization.
     warmup = SparseLIFSimulator(graph, config=config, backend=backend)
     warmup.prepare()
-    warmup.run(stimulus, duration_s=duration_s)
+    warmup.advance_chunk(stimulus, duration_s=duration_s)
     del warmup
     gc.collect()
 
@@ -183,14 +183,14 @@ def _benchmark_scenario(
         simulator = SparseLIFSimulator(graph, config=config, backend=backend)
         construction_times.append(perf_counter() - constructed_at)
         executed_at = perf_counter()
-        trace = simulator.run(stimulus, duration_s=duration_s)
+        result = simulator.advance_chunk(stimulus, duration_s=duration_s)
         execution_times.append(perf_counter() - executed_at)
-        spike_counts.append(sum(trace.readout.neuron_spike_counts))
+        spike_counts.append(result.total_spikes)
         visited_edges.append(simulator.visited_edges)
         state_update_times.append(simulator.state_update_seconds)
         propagation_times.append(simulator.synaptic_propagation_seconds)
         recording_times.append(simulator.recording_seconds)
-        del trace, simulator
+        del result, simulator
         gc.collect()
 
     execution_summary = _timing_summary(execution_times)
@@ -217,8 +217,8 @@ def _benchmark_scenario(
         },
         "recording": {
             "watchlist_neurons": 0,
-            "detailed_spike_history": True,
-            "all_neuron_counts": True,
+            "maximum_spike_events": 0,
+            "all_neuron_counts": False,
         },
     }
 

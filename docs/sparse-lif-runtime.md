@@ -34,6 +34,26 @@ The delay ring stores only arrays of spiking source indices. It does not allocat
 dense neuron-by-delay matrix. The caller can request voltage and synaptic-drive
 traces for a watchlist without recording all 166,700 neurons.
 
+## Continuous stepping and bounded recording
+
+`advance_step()` and `advance_chunk()` preserve membrane voltage, synaptic drive,
+refractory counters, the recurrent delay ring, and absolute simulation time. A
+chunk's artificial stimulus times are relative to the start of that chunk, while
+sample and recorded spike times in `ChunkResult` are absolute since the last
+explicit `reset()`.
+
+The default chunk recorder returns total spikes and configured population rates but
+keeps no per-neuron counts, spike events, or voltage history. `ChunkRecording` can
+request a fixed watchlist, one chunk of per-neuron counts, and at most a specified
+number of spike events. Excess events contribute to totals and
+`dropped_spike_events` but are not retained. Runtime memory therefore scales with
+the fixed neural state, delay ring, chunk length times watchlist size, and the
+explicit event cap; the simulator does not accumulate completed chunk history.
+
+`run()` remains the finite-duration compatibility path used for Brian2 validation:
+it resets first and returns complete per-neuron spike histories and requested
+watchlist traces.
+
 ## Validation
 
 Run:
@@ -42,9 +62,9 @@ Run:
 uv run python -m flybrain_interface.experiments.validate_runtime
 ```
 
-The harness deterministically selects a 64-neuron induced MaleCNS neighborhood
-around a strong excitatory edge. It runs identical stimulation through Brian2 and
-the sparse runtime, requiring agreement in:
+The harness deterministically selects three 64-neuron induced MaleCNS neighborhoods
+around distinct strong excitatory edges. It runs two input cases through Brian2 and
+both NumPy and Numba runtime backends, requiring agreement in:
 
 - per-neuron spike counts;
 - spike times to 1e-12 seconds;
@@ -69,11 +89,12 @@ uses increasing quiet durations to expose fixed overhead and bounded active runs
 avoid an uncontrolled activity cascade. Its dense-input case is explicitly an
 engineering stress test, not a physiological activity model.
 
-On the development host, the accepted full-network measurement reduced the
-100-step quiet median from 0.625 to 0.409 ms/step and the sparse-input median from
-1.105 to 0.677 ms/step. Spike and visited-edge counts were identical across all
-repeats and backends. These are host-specific engineering measurements, not
-biological-performance claims.
+On the development host, the summary-only full-network measurement reduced the
+100-step quiet median from 0.464 to 0.188 ms/step and the sparse-input median from
+0.730 to 0.225 ms/step. The corresponding simulated/wall ratios were 0.533 and
+0.444, so neither case is real time yet. Spike and visited-edge counts were
+identical across all repeats and backends. These are host-specific engineering
+measurements, not biological-performance claims.
 
 ## Current limitation
 

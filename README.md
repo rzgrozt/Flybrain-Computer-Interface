@@ -90,7 +90,8 @@ uv run python -m flybrain_interface.experiments.validate_runtime
 ```
 
 The command compares spike counts, spike times, membrane voltage, and synaptic
-drive, then runs a short full-network runtime smoke benchmark. See
+drive across multiple real-data neighborhoods, input cases, and both runtime
+backends. It then runs a summary-only full-network runtime smoke benchmark. See
 [`docs/sparse-lif-runtime.md`](docs/sparse-lif-runtime.md).
 
 Run the reproducible full-network performance benchmark with:

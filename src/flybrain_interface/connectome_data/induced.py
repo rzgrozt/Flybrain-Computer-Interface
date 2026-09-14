@@ -134,8 +134,23 @@ def strongest_outgoing_neighborhood(
 ) -> InducedConnectome:
     """Select a deterministic real subgraph around a strong excitatory edge."""
 
+    return strong_outgoing_neighborhoods(
+        graph, neuron_count=neuron_count, neighborhood_count=1
+    )[0]
+
+
+def strong_outgoing_neighborhoods(
+    graph: MemoryMappedConnectome,
+    *,
+    neuron_count: int,
+    neighborhood_count: int,
+) -> tuple[InducedConnectome, ...]:
+    """Select deterministic real subgraphs around distinct strong excitatory seeds."""
+
     if neuron_count < 2 or neuron_count > graph.neuron_count:
         raise ValueError("neuron_count must be between 2 and the full graph size")
+    if neighborhood_count <= 0:
+        raise ValueError("neighborhood_count must be positive")
     candidate_count = min(4096, graph.edge_count)
     candidate_positions = np.argpartition(
         graph.outgoing_synapse_counts, graph.edge_count - candidate_count
@@ -160,12 +175,26 @@ def strongest_outgoing_neighborhood(
     )
     if not np.any(valid):
         raise ValueError("could not find an excitatory, non-self seed edge")
-    seed = int(candidate_sources[np.flatnonzero(valid)[0]])
-    outgoing = graph.outgoing(seed)
-    order = np.lexsort((outgoing.target_indices, -outgoing.synapse_counts))
-    neighbors = outgoing.target_indices[order]
-    neighbors = neighbors[neighbors != seed]
-    selected = np.concatenate(
-        (np.asarray([seed], dtype=np.int32), neighbors[: neuron_count - 1])
+    neighborhoods: list[InducedConnectome] = []
+    used_seeds: set[int] = set()
+    for candidate in candidate_sources[valid]:
+        seed = int(candidate)
+        if seed in used_seeds:
+            continue
+        used_seeds.add(seed)
+        outgoing = graph.outgoing(seed)
+        edge_order = np.lexsort((outgoing.target_indices, -outgoing.synapse_counts))
+        neighbors = outgoing.target_indices[edge_order]
+        neighbors = neighbors[neighbors != seed]
+        if neighbors.size < neuron_count - 1:
+            continue
+        selected = np.concatenate(
+            (np.asarray([seed], dtype=np.int32), neighbors[: neuron_count - 1])
+        )
+        neighborhoods.append(induce_connectome(graph, selected))
+        if len(neighborhoods) == neighborhood_count:
+            return tuple(neighborhoods)
+    raise ValueError(
+        f"could not find {neighborhood_count} strong neighborhoods with "
+        f"{neuron_count} neurons"
     )
-    return induce_connectome(graph, selected)

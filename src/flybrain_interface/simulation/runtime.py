@@ -15,7 +15,11 @@ from flybrain_interface.contracts import NeuralReadout
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
 from flybrain_interface.simulation.config import ShiuLIFConfig
 from flybrain_interface.simulation.kernels import advance_state_numba
-from flybrain_interface.simulation.trace import SimulationTrace
+from flybrain_interface.simulation.trace import (
+    ChunkRecording,
+    ChunkResult,
+    SimulationTrace,
+)
 
 FloatArray = npt.NDArray[np.float64]
 IntArray = npt.NDArray[np.int64]
@@ -120,51 +124,140 @@ class SparseLIFSimulator:
         """Reset, execute a fixed-duration run, and return comparable traces."""
 
         step_count = _duration_steps(duration_s, self.config.dt_ms)
-        watch = np.asarray(watched_indices, dtype=np.int64)
-        if watch.ndim != 1 or np.unique(watch).size != watch.size:
-            raise ValueError("watched_indices must be one-dimensional and unique")
-        if watch.size and (
-            watch.min() < 0 or watch.max() >= self.connectivity.neuron_count
-        ):
-            raise ValueError("watched neuron index outside network")
-        input_schedule = self._input_schedule(stimulus, step_count)
-
         self.reset()
-        sample_times = np.arange(step_count, dtype=np.float64) * (
-            self.config.dt_ms / 1000.0
+        chunk = self.advance_chunk(
+            stimulus,
+            duration_s=duration_s,
+            recording=ChunkRecording(
+                watched_indices=watched_indices,
+                include_neuron_counts=True,
+                max_spike_events=step_count * self.connectivity.neuron_count,
+            ),
         )
-        voltage_trace = np.empty((step_count, watch.size), dtype=np.float64)
-        drive_trace = np.empty((step_count, watch.size), dtype=np.float64)
         spike_times: list[list[float]] = [
             [] for _ in range(self.connectivity.neuron_count)
         ]
-
-        for step in range(step_count):
-            external_indices = input_schedule.get(step)
-            spikes = self._advance(external_indices, stimulus.amplitude_mv)
-            recording_started = perf_counter()
-            time_s = step * self.config.dt_ms / 1000.0
-            for neuron in spikes:
-                spike_times[int(neuron)].append(time_s)
-            voltage_trace[step] = self.voltage_mv[watch]
-            drive_trace[step] = self.synaptic_drive_mv[watch]
-            self.recording_seconds += perf_counter() - recording_started
-
+        for neuron, time_s in zip(
+            chunk.spike_neuron_indices, chunk.spike_times_s, strict=True
+        ):
+            spike_times[int(neuron)].append(float(time_s))
         immutable_times = tuple(tuple(times) for times in spike_times)
-        counts = tuple(len(times) for times in immutable_times)
-        rates = {
-            name: sum(counts[index] for index in indices) / (len(indices) * duration_s)
-            for name, indices in self.populations.items()
-        }
+        if chunk.neuron_spike_counts is None or chunk.dropped_spike_events:
+            raise RuntimeError(
+                "compatibility run failed to retain complete spike history"
+            )
         readout = NeuralReadout(
             duration_s=duration_s,
-            neuron_spike_counts=counts,
-            population_rates_hz=rates,
+            neuron_spike_counts=tuple(
+                int(value) for value in chunk.neuron_spike_counts
+            ),
+            population_rates_hz=chunk.population_rates_hz,
             spike_times_s=immutable_times,
         )
         return SimulationTrace(
             readout=readout,
             watched_indices=watched_indices,
+            sample_times_s=chunk.sample_times_s,
+            voltage_mv=chunk.voltage_mv,
+            synaptic_drive_mv=chunk.synaptic_drive_mv,
+        )
+
+    @property
+    def current_step(self) -> int:
+        """Current absolute neural-grid step since the last reset."""
+
+        return self._step_index
+
+    @property
+    def current_time_s(self) -> float:
+        """Current absolute simulated time since the last reset."""
+
+        return self._step_index * self.config.dt_ms / 1000.0
+
+    def advance_step(
+        self,
+        input_indices: npt.ArrayLike = (),
+        *,
+        amplitude_mv: float = 8.0,
+    ) -> IntArray:
+        """Advance one grid point without resetting and return emitted neuron IDs."""
+
+        indices = self._validate_external_indices(input_indices)
+        if not np.isfinite(amplitude_mv):
+            raise ValueError("stimulus amplitude must be finite")
+        return self._advance(indices if indices.size else None, amplitude_mv)
+
+    def advance_chunk(
+        self,
+        stimulus: DeterministicSpikeInput | None = None,
+        *,
+        duration_s: float,
+        recording: ChunkRecording = ChunkRecording(),
+    ) -> ChunkResult:
+        """Advance persistent state; stimulus times are relative to this chunk."""
+
+        if stimulus is None:
+            stimulus = DeterministicSpikeInput(neuron_indices=(), times_s=())
+        step_count = _duration_steps(duration_s, self.config.dt_ms)
+        watch = self._validated_watch(recording.watched_indices)
+        input_schedule = self._input_schedule(stimulus, step_count)
+        start_step = self._step_index
+        sample_times = (start_step + np.arange(step_count, dtype=np.float64)) * (
+            self.config.dt_ms / 1000.0
+        )
+        voltage_trace = np.empty((step_count, watch.size), dtype=np.float64)
+        drive_trace = np.empty((step_count, watch.size), dtype=np.float64)
+        counts = (
+            np.zeros(self.connectivity.neuron_count, dtype=np.int64)
+            if recording.include_neuron_counts or self.populations
+            else None
+        )
+        event_neurons: list[int] = []
+        event_times: list[float] = []
+        total_spikes = 0
+
+        for local_step in range(step_count):
+            external_indices = input_schedule.get(local_step)
+            spikes = self._advance(external_indices, stimulus.amplitude_mv)
+            recording_started = perf_counter()
+            spike_count = int(spikes.size)
+            total_spikes += spike_count
+            if spike_count and counts is not None:
+                np.add.at(counts, spikes, 1)
+            if spike_count:
+                remaining = recording.max_spike_events - len(event_neurons)
+                if remaining > 0:
+                    retained = spikes[:remaining]
+                    event_neurons.extend(int(neuron) for neuron in retained)
+                    event_times.extend(
+                        [float(sample_times[local_step])] * int(retained.size)
+                    )
+            if watch.size:
+                voltage_trace[local_step] = self.voltage_mv[watch]
+                drive_trace[local_step] = self.synaptic_drive_mv[watch]
+            self.recording_seconds += perf_counter() - recording_started
+
+        rates = (
+            {
+                name: float(np.sum(counts[np.asarray(indices, dtype=np.int64)]))
+                / (len(indices) * duration_s)
+                for name, indices in self.populations.items()
+            }
+            if counts is not None
+            else {}
+        )
+        recorded_count = len(event_neurons)
+        return ChunkResult(
+            start_step=start_step,
+            end_step=self._step_index,
+            dt_ms=self.config.dt_ms,
+            total_spikes=total_spikes,
+            population_rates_hz=rates,
+            neuron_spike_counts=(counts if recording.include_neuron_counts else None),
+            spike_neuron_indices=np.asarray(event_neurons, dtype=np.int64),
+            spike_times_s=np.asarray(event_times, dtype=np.float64),
+            dropped_spike_events=total_spikes - recorded_count,
+            watched_indices=recording.watched_indices,
             sample_times_s=sample_times,
             voltage_mv=voltage_trace,
             synaptic_drive_mv=drive_trace,
@@ -288,6 +381,26 @@ class SparseLIFSimulator:
                 raise ValueError("a neuron cannot receive duplicate input at one time")
             schedule[step] = values
         return schedule
+
+    def _validate_external_indices(self, input_indices: npt.ArrayLike) -> IntArray:
+        indices = np.asarray(input_indices, dtype=np.int64)
+        if indices.ndim != 1 or np.unique(indices).size != indices.size:
+            raise ValueError("input_indices must be one-dimensional and unique")
+        if indices.size and (
+            indices.min() < 0 or indices.max() >= self.connectivity.neuron_count
+        ):
+            raise ValueError("stimulus neuron index outside network")
+        return indices
+
+    def _validated_watch(self, watched_indices: tuple[int, ...]) -> IntArray:
+        watch = np.asarray(watched_indices, dtype=np.int64)
+        if watch.ndim != 1 or np.unique(watch).size != watch.size:
+            raise ValueError("watched_indices must be one-dimensional and unique")
+        if watch.size and (
+            watch.min() < 0 or watch.max() >= self.connectivity.neuron_count
+        ):
+            raise ValueError("watched neuron index outside network")
+        return watch
 
     def _validate_populations(self) -> None:
         for name, indices in self.populations.items():
