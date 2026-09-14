@@ -103,3 +103,27 @@ The membrane and conductance update still scans the complete neuron state each
 slower than real time on the development host. Under dense engineering load,
 source-edge propagation becomes the dominant measured phase. Optimization must
 continue to preserve the NumPy and Brian2 equivalence gates.
+
+## Long-duration stability and load measurement
+
+Run the bounded chunked benchmark with:
+
+```bash
+uv run python -m flybrain_interface.experiments.stability_runtime \
+  --data-directory /absolute/path/to/data/processed/malecns-v1.0 \
+  --output artifacts/benchmarks/stability.json
+```
+
+The stability benchmark advances persistent state in fixed 10 ms chunks for 100 ms,
+1 second, and 10 seconds of simulated time. It runs no-input and deterministic
+one-event sparse-input cases plus a bounded denser-input engineering stress case.
+The denser case is not a physiological activity assumption. Per-run wall-time, RSS,
+spike, and visited-edge budgets are checked at every chunk boundary. A budget-limited
+run is reported as stopped rather than complete.
+
+The machine-readable output separates load, construction, compilation/warmup, and
+steady-state execution. It includes chunk-latency distributions, sign-policy
+population spikes, delayed-event backlog, finite-state checks, and Linux anonymous
+versus file-backed memory residency. The simulated/wall ratio is simulated seconds
+divided by steady-state execution seconds; a value below one is slower than real
+time.

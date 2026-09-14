@@ -105,6 +105,18 @@ quiet, deterministic sparse-input, and explicitly non-physiological
 engineering-stress scenarios. The simulated-to-wall ratio is defined as simulated
 seconds divided by wall seconds; values below 1 are slower than real time.
 
+Run bounded, chunked full-graph stability measurements with:
+
+```bash
+uv run python -m flybrain_interface.experiments.stability_runtime \
+  --output artifacts/benchmarks/stability.json
+```
+
+This records memory residency, finite state, population activity, delayed-event
+backlog, and latency distributions under explicit wall-time, RSS, spike, and edge
+budgets. See [`docs/stability-benchmark-2026-09-14.md`](docs/stability-benchmark-2026-09-14.md)
+for the latest host-specific results and limitations.
+
 ## Architectural boundaries
 
 Semantic translators can return only structured goals. Optional visual evaluators

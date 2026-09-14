@@ -143,6 +143,27 @@ def test_advance_step_preserves_state_until_explicit_reset() -> None:
     np.testing.assert_allclose(simulator.voltage_mv, simulator.config.resting_mv)
 
 
+def test_pending_delayed_events_cross_chunk_boundaries_exactly_once() -> None:
+    simulator = SparseLIFSimulator(_delayed_graph())
+    recording = ChunkRecording(max_spike_events=10)
+
+    first = simulator.advance_chunk(
+        DeterministicSpikeInput(neuron_indices=(0,), times_s=(0.0,)),
+        duration_s=0.001,
+        recording=recording,
+    )
+    assert first.spike_neuron_indices.tolist() == [0]
+    assert simulator.pending_delayed_events == 1
+
+    second = simulator.advance_chunk(duration_s=0.001, recording=recording)
+    assert second.total_spikes == 0
+    assert simulator.pending_delayed_events == 0
+
+    third = simulator.advance_chunk(duration_s=0.003, recording=recording)
+    assert third.spike_neuron_indices.tolist() == [1]
+    assert simulator.visited_edges == 1
+
+
 def test_default_chunks_retain_no_detailed_history() -> None:
     simulator = SparseLIFSimulator(_delayed_graph())
 

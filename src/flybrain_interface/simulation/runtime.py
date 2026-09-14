@@ -174,6 +174,12 @@ class SparseLIFSimulator:
 
         return self._step_index * self.config.dt_ms / 1000.0
 
+    @property
+    def pending_delayed_events(self) -> int:
+        """Number of emitted spikes awaiting delivery in the delay ring."""
+
+        return sum(int(events.size) for events in self._delay_ring)
+
     def advance_step(
         self,
         input_indices: npt.ArrayLike = (),
