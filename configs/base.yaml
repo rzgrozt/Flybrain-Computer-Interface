@@ -16,6 +16,17 @@ runtime:
   deterministic: true
   device: cpu
 
+simulation:
+  model: shiu-lif
+  resting_mv: -52.0
+  reset_mv: -52.0
+  threshold_mv: -45.0
+  membrane_tau_ms: 20.0
+  synapse_tau_ms: 5.0
+  refractory_ms: 2.2
+  delay_ms: 1.8
+  synapse_scale_mv: 0.275
+
 clocks:
   neural_dt_ms: 0.1
   visual_hz: 30.0

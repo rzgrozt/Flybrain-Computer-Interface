@@ -12,21 +12,8 @@ from brian2.codegen.runtime.numpy_rt import NumpyCodeObject
 from flybrain_interface.connectome_data.sparse import SparseConnectivity
 from flybrain_interface.contracts import NeuralReadout
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
-
-
-@dataclass(frozen=True, slots=True)
-class ShiuLIFConfig:
-    """Published Shiu et al. baseline parameters expressed in milliseconds/mV."""
-
-    resting_mv: float = -52.0
-    reset_mv: float = -52.0
-    threshold_mv: float = -45.0
-    membrane_tau_ms: float = 20.0
-    synapse_tau_ms: float = 5.0
-    refractory_ms: float = 2.2
-    delay_ms: float = 1.8
-    synapse_scale_mv: float = 0.275
-    dt_ms: float = 0.1
+from flybrain_interface.simulation.config import ShiuLIFConfig
+from flybrain_interface.simulation.trace import SimulationTrace
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +30,15 @@ class Brian2ReferenceSimulator:
         *,
         duration_s: float,
     ) -> NeuralReadout:
+        return self.trace(stimulus, duration_s=duration_s).readout
+
+    def trace(
+        self,
+        stimulus: DeterministicSpikeInput,
+        *,
+        duration_s: float,
+        watched_indices: tuple[int, ...] = (),
+    ) -> SimulationTrace:
         if duration_s <= 0:
             raise ValueError("duration_s must be positive")
         if any(
@@ -52,6 +48,13 @@ class Brian2ReferenceSimulator:
             raise ValueError("stimulus neuron index outside network")
         if any(time >= duration_s for time in stimulus.times_s):
             raise ValueError("stimulus spike time must be inside the run duration")
+        if len(set(watched_indices)) != len(watched_indices):
+            raise ValueError("watched_indices must be unique")
+        if any(
+            neuron < 0 or neuron >= self.connectivity.neuron_count
+            for neuron in watched_indices
+        ):
+            raise ValueError("watched neuron index outside network")
 
         cfg = self.config
         clock = b2.Clock(dt=cfg.dt_ms * b2.ms)
@@ -119,12 +122,21 @@ class Brian2ReferenceSimulator:
         input_synapses.connect(j="i")
 
         monitor = b2.SpikeMonitor(neurons, codeobj_class=NumpyCodeObject)
+        state_monitor = b2.StateMonitor(
+            neurons,
+            variables=("v", "g"),
+            record=np.asarray(watched_indices, dtype=np.int64),
+            when="end",
+            clock=clock,
+            codeobj_class=NumpyCodeObject,
+        )
         network = b2.Network(
             neurons,
             recurrent,
             spike_input,
             input_synapses,
             monitor,
+            state_monitor,
         )
         network.run(duration_s * b2.second)
 
@@ -138,11 +150,18 @@ class Brian2ReferenceSimulator:
             name: self._population_rate(indices, counts, duration_s)
             for name, indices in self.populations.items()
         }
-        return NeuralReadout(
+        readout = NeuralReadout(
             duration_s=duration_s,
             neuron_spike_counts=counts,
             population_rates_hz=rates,
             spike_times_s=spike_times,
+        )
+        return SimulationTrace(
+            readout=readout,
+            watched_indices=watched_indices,
+            sample_times_s=np.asarray(state_monitor.t / b2.second, dtype=np.float64),
+            voltage_mv=np.asarray(state_monitor.v / b2.mV, dtype=np.float64).T,
+            synaptic_drive_mv=np.asarray(state_monitor.g / b2.mV, dtype=np.float64).T,
         )
 
     def _population_rate(

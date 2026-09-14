@@ -22,10 +22,13 @@ The first executable foundation is in place:
   population selection, and explicit transmitter-sign policies.
 - a source-major outgoing index and event-driven spike propagation validated
   against the full target-major matrix operation.
+- a deterministic sparse-event LIF engine with delayed delivery, exact state
+  updates, refractory handling, watchlist traces, and Brian2 equivalence tests.
 
-The real MaleCNS graph can now perform sparse contact propagation, but it is not yet
-connected to the Brian2 backend. No plasticity has been implemented and no
-desktop-control API is connected.
+The real MaleCNS graph is connected to the sparse LIF runtime. Brian2 remains the
+transparent reference for induced-subgraph validation rather than full-network
+execution. No plasticity has been implemented and no desktop-control API is
+connected.
 
 ## Development setup
 
@@ -79,6 +82,16 @@ uv run python -m flybrain_interface.experiments.full_graph
 This maps both sparse orientations read-only, reports transmitter/sign populations,
 and compares full-matrix propagation with an outgoing-edge spike event. See
 [`docs/runtime-graph.md`](docs/runtime-graph.md) for the assumptions and API.
+
+Validate the neural runtime against Brian2 on a deterministic real-data subgraph:
+
+```bash
+uv run python -m flybrain_interface.experiments.validate_runtime
+```
+
+The command compares spike counts, spike times, membrane voltage, and synaptic
+drive, then runs a short full-network runtime smoke benchmark. See
+[`docs/sparse-lif-runtime.md`](docs/sparse-lif-runtime.md).
 
 ## Architectural boundaries
 

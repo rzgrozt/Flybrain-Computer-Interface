@@ -290,7 +290,9 @@ class MemoryMappedConnectome:
             event_amplitudes = np.ones(spikes.size, dtype=np.float64)
         else:
             event_amplitudes = np.asarray(amplitudes, dtype=np.float64)
-            if event_amplitudes.shape != spikes.shape:
+            if event_amplitudes.ndim == 0:
+                event_amplitudes = np.broadcast_to(event_amplitudes, spikes.shape)
+            elif event_amplitudes.shape != spikes.shape:
                 raise ValueError("amplitudes must match spiking_indices")
             if not np.isfinite(event_amplitudes).all():
                 raise ValueError("amplitudes must be finite")

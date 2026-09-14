@@ -44,6 +44,9 @@ def test_memory_mapped_graph_selects_and_propagates(tmp_path: Path) -> None:
     visited = graph.accumulate_spikes([0, 1], event_result)
     assert visited == 3
     assert event_result.tolist() == result.tolist()
+    scaled_result = np.zeros(3, dtype=np.float64)
+    graph.accumulate_spikes([0], scaled_result, amplitudes=0.5)
+    assert scaled_result.tolist() == [0.0, 2.0, 1.0]
     assert graph.catalog.select(superclass="sensory").tolist() == [0]
     assert graph.catalog.body_ids([2, 0]).tolist() == [30, 10]
 
