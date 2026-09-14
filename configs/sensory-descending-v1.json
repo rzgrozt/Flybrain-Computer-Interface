@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "name": "sensory-descending-characterization-v1",
+  "dataset": "male-cns:v1.0",
+  "selection_rule": "sort matching neurons by body_id ascending, then take the first sample_limit entries",
+  "inputs": [
+    {
+      "key": "r1_r6",
+      "label": "R1-R6 outer photoreceptors",
+      "query": {"superclass": "ol_sensory", "class": "visual", "type": "R1-R6"},
+      "sample_limit": 32
+    },
+    {
+      "key": "orn_da1",
+      "label": "DA1 olfactory receptor neurons",
+      "query": {"superclass": "cb_sensory", "class": "olfactory", "type": "ORN_DA1"},
+      "sample_limit": 32
+    },
+    {
+      "key": "jo_a1",
+      "label": "JO-A1 auditory mechanosensory neurons",
+      "query": {"superclass": "cb_sensory", "class": "mechanosensory", "subclass": "auditory", "type": "JO-A1"},
+      "sample_limit": 32
+    }
+  ],
+  "outputs": [
+    {
+      "key": "all_descending",
+      "label": "All anatomically annotated descending neurons",
+      "query": {"superclass": "descending_neuron"},
+      "sample_limit": null
+    },
+    {
+      "key": "dng13",
+      "label": "DNg13 pair",
+      "query": {"superclass": "descending_neuron", "type": "DNg13"},
+      "sample_limit": null
+    },
+    {
+      "key": "dnp01",
+      "label": "DNp01 giant-fiber pair",
+      "query": {"superclass": "descending_neuron", "type": "DNp01"},
+      "sample_limit": null
+    }
+  ],
+  "timing": {
+    "baseline_s": 0.05,
+    "total_s": 0.25,
+    "stimulus_durations_s": [0.02, 0.05],
+    "pulse_interval_ms": 5.0
+  },
+  "amplitudes_mv": [4.0, 8.0],
+  "repeats": 2,
+  "seed": 0,
+  "backend": "numba",
+  "subnormal_drive_policy": "preserve",
+  "max_recorded_spike_events_per_run": 200000,
+  "max_total_network_spikes_per_run": 200000,
+  "max_visited_edges_per_run": 100000000,
+  "max_process_rss_bytes": 1073741824,
+  "wall_time_budget_s": 90.0
+}
