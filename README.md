@@ -93,6 +93,16 @@ The command compares spike counts, spike times, membrane voltage, and synaptic
 drive, then runs a short full-network runtime smoke benchmark. See
 [`docs/sparse-lif-runtime.md`](docs/sparse-lif-runtime.md).
 
+Run the reproducible full-network performance benchmark with:
+
+```bash
+uv run python -m flybrain_interface.experiments.benchmark_runtime
+```
+
+It reports quiet, deterministic sparse-input, and explicitly non-physiological
+engineering-stress scenarios. The simulated-to-wall ratio is defined as simulated
+seconds divided by wall seconds; values below 1 are slower than real time.
+
 ## Architectural boundaries
 
 Semantic translators can return only structured goals. Optional visual evaluators

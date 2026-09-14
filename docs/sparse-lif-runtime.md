@@ -53,6 +53,19 @@ It also performs a ten-step, no-stimulus smoke run with the complete 166,700-neu
 state vector. This is a construction and state-update check, not a claim of
 real-time performance.
 
+For performance measurement, use:
+
+```bash
+uv run python -m flybrain_interface.experiments.benchmark_runtime
+```
+
+The benchmark records host/runtime and dataset/configuration provenance, repeated
+minimum/median/maximum timings, loading and construction time, peak process memory,
+spikes, visited edges, and simulated-time/wall-time ratio. It uses increasing quiet
+durations to expose fixed overhead and bounded active runs to avoid an uncontrolled
+activity cascade. Its dense-input case is explicitly an engineering stress test,
+not a physiological activity model.
+
 ## Current limitation
 
 Synaptic propagation is event-driven, but membrane and conductance decay still scan
