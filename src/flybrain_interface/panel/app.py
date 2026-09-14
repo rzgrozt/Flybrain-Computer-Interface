@@ -92,7 +92,7 @@ def create_app(
     @app.post("/api/experiments", response_model=ActionResponse, status_code=202)
     async def start_experiment(config: ExperimentConfig) -> ActionResponse:
         current = controller.latest.get("status")
-        if current in {"running", "paused"}:
+        if current in {"starting", "running", "pausing", "paused", "resuming"}:
             raise HTTPException(409, "an experiment is already active")
         try:
             controller.command("start", config)
@@ -115,9 +115,15 @@ def create_app(
         if current not in allowed[action]:
             raise HTTPException(409, f"cannot {action} while status is {current}")
         try:
-            controller.command(action)
+            recovered = controller.command(action)
         except RuntimeError as error:
             raise HTTPException(503, str(error)) from error
+        if recovered:
+            return ActionResponse(
+                accepted=True,
+                status="idle",
+                detail="worker recovered to idle; no experiment was replayed",
+            )
         return ActionResponse(accepted=True, status=current, detail=f"{action} queued")
 
     @app.websocket("/ws/telemetry")

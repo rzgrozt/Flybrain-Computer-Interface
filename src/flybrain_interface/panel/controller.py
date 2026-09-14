@@ -28,6 +28,7 @@ class PanelController:
     def start_worker(self) -> None:
         if self._process is not None and self._process.is_alive():
             return
+        self._dispose_worker()
         self._commands = self._context.Queue(maxsize=16)
         self._telemetry = self._context.Queue(maxsize=1)
         self._process = self._context.Process(
@@ -45,14 +46,22 @@ class PanelController:
         process.start()
         self.latest = {"kind": "status", "status": "idle"}
 
-    def command(self, action: str, config: ExperimentConfig | None = None) -> None:
+    def command(
+        self, action: str, config: ExperimentConfig | None = None
+    ) -> bool:
+        recovered = False
         if self._process is None or not self._process.is_alive():
-            self.latest = {
-                "kind": "error",
-                "status": "failed",
-                "error": "simulation worker is not running",
-            }
-            raise RuntimeError("simulation worker is not running")
+            if action not in {"start", "reset"}:
+                self.latest = {
+                    "kind": "error",
+                    "status": "failed",
+                    "error": "simulation worker is not running",
+                }
+                raise RuntimeError("simulation worker is not running")
+            self.start_worker()
+            recovered = True
+            if action == "reset":
+                return recovered
         payload: dict[str, Any] = {"action": action}
         if config is not None:
             payload["config"] = config.model_dump(mode="json")
@@ -72,6 +81,7 @@ class PanelController:
                 "kind": "status",
                 "status": transitional[action],
             }
+        return recovered
 
     def poll_latest(self) -> dict[str, Any] | None:
         if self._process is not None and not self._process.is_alive():
@@ -115,9 +125,30 @@ class PanelController:
         if process.is_alive():
             process.terminate()
             process.join(timeout=2.0)
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=1.0)
+        if process.is_alive():
+            self.latest = {
+                "kind": "error",
+                "status": "failed",
+                "error": "simulation worker did not stop",
+            }
+            return
+        self._dispose_worker()
+        self.latest = {"kind": "status", "status": "stopped"}
+
+    def _dispose_worker(self) -> None:
+        process = self._process
+        if process is not None:
+            if process.is_alive():
+                return
+            process.join(timeout=0.2)
+            process.close()
         for channel in (self._commands, self._telemetry):
             if channel is not None:
                 channel.close()
-                channel.join_thread()
+                channel.cancel_join_thread()
+        self._commands = None
+        self._telemetry = None
         self._process = None
-        self.latest = {"kind": "status", "status": "stopped"}
