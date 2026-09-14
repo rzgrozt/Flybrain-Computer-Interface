@@ -7,6 +7,11 @@ data:
   raw_directory: data/raw
   processed_directory: data/processed
 
+connectome:
+  dataset_directory: data/processed/malecns-v1.0
+  sign_policy: inhibitory-glutamate-modulators-separated-v1
+  ground_truth_overrides_consensus: true
+
 runtime:
   deterministic: true
   device: cpu

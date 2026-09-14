@@ -1,0 +1,240 @@
+"""Read-only, memory-mapped access to a normalized MaleCNS graph."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from types import MappingProxyType
+
+import numpy as np
+import numpy.typing as npt
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as parquet
+from scipy.sparse import csr_matrix
+
+IntArray = npt.NDArray[np.int64]
+IndexArray = npt.NDArray[np.int32]
+CountArray = npt.NDArray[np.int32]
+SignArray = npt.NDArray[np.int8]
+FloatArray = npt.NDArray[np.float64]
+
+
+@dataclass(frozen=True, slots=True)
+class TransmitterSignPolicy:
+    """Explicit neuron-transmitter to fast-synaptic-sign assumptions.
+
+    A zero sign means that the transmitter is not represented as an ordinary fast
+    synaptic current. It does not mean that the biological neuron has no effect.
+    """
+
+    name: str
+    signs: Mapping[str, int]
+    unknown_sign: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("policy name cannot be empty")
+        if self.unknown_sign not in (-1, 0, 1):
+            raise ValueError("unknown_sign must be -1, 0, or 1")
+        if any(sign not in (-1, 0, 1) for sign in self.signs.values()):
+            raise ValueError("transmitter signs must be -1, 0, or 1")
+        normalized = {
+            transmitter.casefold(): sign for transmitter, sign in self.signs.items()
+        }
+        object.__setattr__(self, "signs", MappingProxyType(normalized))
+
+    def sign_for(self, transmitter: str | None) -> int:
+        if transmitter is None:
+            return self.unknown_sign
+        return self.signs.get(transmitter.casefold(), self.unknown_sign)
+
+
+INHIBITORY_GLUTAMATE_POLICY = TransmitterSignPolicy(
+    name="inhibitory-glutamate-modulators-separated-v1",
+    signs={
+        "acetylcholine": 1,
+        "gaba": -1,
+        "glutamate": -1,
+        "histamine": -1,
+        "dopamine": 0,
+        "serotonin": 0,
+        "octopamine": 0,
+        "unclear": 0,
+    },
+)
+
+EXCITATORY_GLUTAMATE_POLICY = TransmitterSignPolicy(
+    name="excitatory-glutamate-modulators-separated-v1",
+    signs={**INHIBITORY_GLUTAMATE_POLICY.signs, "glutamate": 1},
+)
+
+
+@dataclass(frozen=True, slots=True)
+class IncomingConnections:
+    """Zero-copy views of the connections arriving at one target neuron."""
+
+    source_indices: IndexArray
+    synapse_counts: CountArray
+
+
+@dataclass(frozen=True, slots=True)
+class NeuronCatalog:
+    """Small in-memory annotation table aligned with graph neuron indices."""
+
+    table: pa.Table
+
+    @property
+    def neuron_count(self) -> int:
+        return int(self.table.num_rows)
+
+    def select(self, **exact_values: str) -> IntArray:
+        """Select neuron indices by exact, case-sensitive annotation values."""
+
+        mask: pa.Array | pa.ChunkedArray = pa.array(
+            np.ones(self.neuron_count, dtype=np.bool_)
+        )
+        for column_name, value in exact_values.items():
+            if column_name not in self.table.column_names:
+                raise KeyError(f"unknown neuron annotation column: {column_name}")
+            mask = pc.and_kleene(mask, pc.equal(self.table[column_name], value))
+        selected = self.table.filter(pc.fill_null(mask, False))["neuron_index"]
+        return np.asarray(selected.to_numpy(zero_copy_only=False), dtype=np.int64)
+
+    def body_ids(self, neuron_indices: Sequence[int]) -> IntArray:
+        indices = np.asarray(neuron_indices, dtype=np.int64)
+        if indices.size and (indices.min() < 0 or indices.max() >= self.neuron_count):
+            raise IndexError("neuron index outside catalog")
+        body_ids = self.table["body_id"].take(pa.array(indices))
+        return np.asarray(body_ids.to_numpy(zero_copy_only=False), dtype=np.int64)
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryMappedConnectome:
+    """Full target-by-source graph without copying its edge arrays into RAM."""
+
+    directory: Path
+    indptr: npt.NDArray[np.int64]
+    source_indices: IndexArray
+    synapse_counts: CountArray
+    presynaptic_signs: SignArray
+    transmitters: tuple[str | None, ...]
+    catalog: NeuronCatalog
+    sign_policy: TransmitterSignPolicy
+
+    @classmethod
+    def load(
+        cls,
+        directory: Path,
+        *,
+        sign_policy: TransmitterSignPolicy = INHIBITORY_GLUTAMATE_POLICY,
+    ) -> MemoryMappedConnectome:
+        directory = directory.resolve()
+        indptr = np.load(directory / "csr_indptr.npy", mmap_mode="r")
+        indices = np.load(directory / "csr_indices.npy", mmap_mode="r")
+        counts = np.load(directory / "csr_synapse_counts.npy", mmap_mode="r")
+        neurons = parquet.read_table(directory / "neurons.parquet")
+        neuron_count = neurons.num_rows
+        edge_count = int(indices.size)
+
+        if indptr.dtype != np.int64 or indptr.shape != (neuron_count + 1,):
+            raise ValueError("invalid CSR indptr dtype or shape")
+        if indices.dtype != np.int32 or indices.shape != (edge_count,):
+            raise ValueError("invalid CSR source-index dtype or shape")
+        if counts.dtype != np.int32 or counts.shape != (edge_count,):
+            raise ValueError("invalid CSR synapse-count dtype or shape")
+        if int(indptr[0]) != 0 or int(indptr[-1]) != edge_count:
+            raise ValueError("invalid CSR bounds")
+
+        transmitters = _effective_transmitters(neurons)
+        signs = np.fromiter(
+            (sign_policy.sign_for(value) for value in transmitters),
+            dtype=np.int8,
+            count=neuron_count,
+        )
+        signs.flags.writeable = False
+        return cls(
+            directory=directory,
+            indptr=indptr,
+            source_indices=indices,
+            synapse_counts=counts,
+            presynaptic_signs=signs,
+            transmitters=transmitters,
+            catalog=NeuronCatalog(neurons),
+            sign_policy=sign_policy,
+        )
+
+    @property
+    def neuron_count(self) -> int:
+        return self.catalog.neuron_count
+
+    @property
+    def edge_count(self) -> int:
+        return int(self.source_indices.size)
+
+    @property
+    def mapped_edge_bytes(self) -> int:
+        return int(self.source_indices.nbytes + self.synapse_counts.nbytes)
+
+    def incoming(self, target_index: int) -> IncomingConnections:
+        if target_index < 0 or target_index >= self.neuron_count:
+            raise IndexError("target neuron index outside graph")
+        start = int(self.indptr[target_index])
+        stop = int(self.indptr[target_index + 1])
+        return IncomingConnections(
+            source_indices=self.source_indices[start:stop],
+            synapse_counts=self.synapse_counts[start:stop],
+        )
+
+    def unsigned_csr(self) -> csr_matrix:
+        """Expose a zero-copy SciPy view of the unsigned contact matrix."""
+
+        matrix = csr_matrix(
+            (self.synapse_counts, self.source_indices, self.indptr),
+            shape=(self.neuron_count, self.neuron_count),
+            copy=False,
+        )
+        if not np.shares_memory(matrix.data, self.synapse_counts):
+            raise RuntimeError("SciPy copied the memory-mapped synapse counts")
+        if not np.shares_memory(matrix.indices, self.source_indices):
+            raise RuntimeError("SciPy copied the memory-mapped source indices")
+        return matrix
+
+    def propagate(self, presynaptic_activity: npt.ArrayLike) -> FloatArray:
+        """Compute signed contact input while leaving edge weights unsigned."""
+
+        activity = np.asarray(presynaptic_activity, dtype=np.float64)
+        if activity.shape != (self.neuron_count,):
+            raise ValueError("presynaptic activity must have one value per neuron")
+        if not np.isfinite(activity).all():
+            raise ValueError("presynaptic activity must be finite")
+        signed_activity = activity * self.presynaptic_signs
+        return np.asarray(self.unsigned_csr() @ signed_activity, dtype=np.float64)
+
+    def transmitter_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for transmitter in self.transmitters:
+            key = transmitter if transmitter is not None else "missing"
+            counts[key] = counts.get(key, 0) + 1
+        return dict(sorted(counts.items()))
+
+    def sign_counts(self) -> dict[str, int]:
+        return {
+            "inhibitory": int(np.count_nonzero(self.presynaptic_signs == -1)),
+            "separated_or_unknown": int(np.count_nonzero(self.presynaptic_signs == 0)),
+            "excitatory": int(np.count_nonzero(self.presynaptic_signs == 1)),
+        }
+
+
+def _effective_transmitters(table: pa.Table) -> tuple[str | None, ...]:
+    consensus = table["consensus_nt"].to_pylist()
+    ground_truth = table["ground_truth_nt"].to_pylist()
+    return tuple(
+        str(verified) if verified is not None else _optional_string(predicted)
+        for predicted, verified in zip(consensus, ground_truth, strict=True)
+    )
+
+
+def _optional_string(value: object) -> str | None:
+    return None if value is None else str(value)

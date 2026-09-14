@@ -18,10 +18,12 @@ The first executable foundation is in place:
   decoding, scalar reward, and non-blocking telemetry;
 - optional semantic and visual-support registries that are disabled by default.
 - a verified MaleCNS v1.0 acquisition and memory-bounded normalization pipeline.
+- a read-only full-graph loader with memory-mapped edges, annotation-based
+  population selection, and explicit transmitter-sign policies.
 
-The real MaleCNS graph can now be prepared locally, but it is not yet connected to
-the Brian2 backend. No plasticity has been implemented and no desktop-control API is
-connected.
+The real MaleCNS graph can now perform sparse contact propagation, but it is not yet
+connected to the Brian2 backend. No plasticity has been implemented and no
+desktop-control API is connected.
 
 ## Development setup
 
@@ -64,6 +66,16 @@ The normalized local dataset contains 166,700 classified neurons, 25,582,938
 directed edges, and 124,177,617 synaptic contacts in both Parquet and target-major
 memory-mappable CSR arrays. See [`docs/data-pipeline.md`](docs/data-pipeline.md) for
 the selection rule, output schema, and limitations.
+
+Inspect and benchmark that full graph with:
+
+```bash
+uv run python -m flybrain_interface.experiments.full_graph
+```
+
+This maps the edge arrays read-only, reports transmitter/sign populations, and runs
+one deterministic sparse propagation without constructing a signed edge copy. See
+[`docs/runtime-graph.md`](docs/runtime-graph.md) for the assumptions and API.
 
 ## Architectural boundaries
 
