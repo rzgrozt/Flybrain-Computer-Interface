@@ -17,9 +17,10 @@ The first executable foundation is in place:
 - typed boundaries for sensory input, semantic goals, neural output, fixed motor
   decoding, scalar reward, and non-blocking telemetry;
 - optional semantic and visual-support registries that are disabled by default.
+- a verified MaleCNS v1.0 acquisition and memory-bounded normalization pipeline.
 
-This is a synthetic validation network, not a MaleCNS simulation. No MaleCNS data
-has been loaded, no plasticity has been implemented, and no desktop-control API is
+The real MaleCNS graph can now be prepared locally, but it is not yet connected to
+the Brian2 backend. No plasticity has been implemented and no desktop-control API is
 connected.
 
 ## Development setup
@@ -46,6 +47,23 @@ uv run python -m flybrain_interface.experiments.synthetic_reference --runs 3
 
 The command prints measured runtime, per-neuron spikes, population rates, and the
 output of the fixed artificial motor decoder. It performs no operating-system action.
+
+## MaleCNS data pipeline
+
+The official CC-BY MaleCNS v1.0 annotations, neurotransmitter predictions, and
+connection weights are locked by generation, size, GCS checksums, and SHA-256 in the
+tracked source manifest. Raw and normalized data remain ignored by Git.
+
+```bash
+uv run flybrain-data download
+uv run flybrain-data build --memory-limit 4GB --threads 4
+uv run flybrain-data validate
+```
+
+The normalized local dataset contains 166,700 classified neurons, 25,582,938
+directed edges, and 124,177,617 synaptic contacts in both Parquet and target-major
+memory-mappable CSR arrays. See [`docs/data-pipeline.md`](docs/data-pipeline.md) for
+the selection rule, output schema, and limitations.
 
 ## Architectural boundaries
 

@@ -3,7 +3,7 @@ project:
   seed: 0
 
 data:
-  manifest: null
+  manifest: data/manifests/malecns-v1.0.json
   raw_directory: data/raw
   processed_directory: data/processed
 

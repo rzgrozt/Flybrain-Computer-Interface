@@ -29,3 +29,15 @@ Shiu's implementation targets FlyWire adult-brain data, not MaleCNS v1.0. The
 synthetic benchmark in this repository therefore validates Brian2 integration,
 sparse edge construction, deterministic stimulation, and module boundaries only.
 It is not evidence of a working whole-brain or MaleCNS simulation.
+
+## MaleCNS v1.0
+
+- Official downloads: <https://male-cns.janelia.org/download/>
+- Dataset: `male-cns:v1.0`
+- Dataset UUID: `4b2087c0fbe046bfaf0d60bc970e3e5d`
+- License: CC-BY-4.0
+- Role: authoritative neuron annotations, neurotransmitter predictions, and
+  segment-to-segment connection weights
+
+The source files and normalized outputs are not committed. Their immutable metadata
+and hashes are recorded in `data/manifests/`.

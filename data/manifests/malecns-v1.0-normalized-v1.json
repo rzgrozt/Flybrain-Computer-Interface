@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "dataset": "male-cns:v1.0",
+  "source_manifest": "malecns-v1.0.json",
+  "source_manifest_sha256": "ccb36d5337ed221e2d952047fb0adddf6620a699e3abeacd3775c86c0b48596c",
+  "selection_policy": "Retain every annotation row with an assigned superclass.",
+  "neuron_count": 166700,
+  "edge_count": 25582938,
+  "synaptic_contact_count": 124177617,
+  "self_edge_count": 101,
+  "outputs": {
+    "csr_indices.npy": {
+      "size_bytes": 102331880,
+      "sha256": "917e8d715e4075ea11f785d3568b13c3f4f29030e91241399d232c85f4188851"
+    },
+    "csr_indptr.npy": {
+      "size_bytes": 1333736,
+      "sha256": "d89cb4bfc7686fd55532a48441ca2ccd49f029c03dbc19e255d93ec417db990c"
+    },
+    "csr_synapse_counts.npy": {
+      "size_bytes": 102331880,
+      "sha256": "1ce50d4108e823a494c61d502c970427d6ac417533409e0b7e0614bebdb7c1ae"
+    },
+    "edges.parquet": {
+      "size_bytes": 84707392,
+      "sha256": "be131a660e8c09be54ba1d8facc565c37e55ab1b572add3f2436a4e73ef47652"
+    },
+    "neurons.parquet": {
+      "size_bytes": 2656625,
+      "sha256": "78c8a5e91bd340de1bac40cad678e3d720277f27d941070666b6dfd59c888376"
+    }
+  }
+}

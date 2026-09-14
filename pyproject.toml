@@ -11,9 +11,14 @@ requires-python = ">=3.11"
 authors = [{ name = "FlyBrain Computer Interface contributors" }]
 dependencies = [
     "brian2>=2.9.0",
+    "duckdb>=1.5.5",
     "numpy>=1.26,<2.4",
+    "pyarrow>=25.0.1",
     "scipy>=1.17.1",
 ]
+
+[project.scripts]
+flybrain-data = "flybrain_interface.connectome_data.cli:main"
 
 [dependency-groups]
 dev = [
@@ -43,5 +48,12 @@ packages = ["flybrain_interface"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["brian2", "brian2.*", "scipy", "scipy.*"]
+module = [
+  "brian2",
+  "brian2.*",
+  "pyarrow",
+  "pyarrow.*",
+  "scipy",
+  "scipy.*",
+]
 ignore_missing_imports = true
