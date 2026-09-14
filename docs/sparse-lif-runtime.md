@@ -127,3 +127,20 @@ population spikes, delayed-event backlog, finite-state checks, and Linux anonymo
 versus file-backed memory residency. The simulated/wall ratio is simulated seconds
 divided by steady-state execution seconds; a value below one is slower than real
 time.
+
+### Subnormal drive handling
+
+The runtime preserves IEEE float64 subnormal synaptic-drive values by default. This
+is the exact baseline, but on the measured Intel host it causes a severe latency
+cliff after a sparse event has decayed for several seconds. Experiments may opt into
+the explicit minimum-normal cutoff approximation with:
+
+```python
+SparseLIFSimulator(graph, subnormal_drive_policy="zero")
+```
+
+or `--subnormal-drive-policy zero` in the stability and validation commands. This
+policy uses a dedicated `fastmath=False` kernel and changes no global or thread-local
+floating-point mode. See
+[`subnormal-drive-policy-2026-09-14.md`](subnormal-drive-policy-2026-09-14.md)
+for causality evidence, before/after measurements, and the numerical tradeoff.

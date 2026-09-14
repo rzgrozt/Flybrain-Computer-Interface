@@ -21,7 +21,10 @@ from flybrain_interface.connectome_data.manifest import file_sha256
 from flybrain_interface.connectome_data.runtime import MemoryMappedConnectome
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
 from flybrain_interface.simulation.config import ShiuLIFConfig
-from flybrain_interface.simulation.runtime import SparseLIFSimulator
+from flybrain_interface.simulation.runtime import (
+    SparseLIFSimulator,
+    SubnormalDrivePolicy,
+)
 
 DEFAULT_DATA_DIRECTORY = Path("data/processed/malecns-v1.0")
 DEFAULT_LOCK = Path("data/manifests/malecns-v1.0-normalized-v2.json")
@@ -54,6 +57,7 @@ def benchmark_stability(
     sparse_input_count: int = 128,
     stress_input_count: int = 4096,
     stress_duration_s: float = 0.1,
+    subnormal_drive_policy: SubnormalDrivePolicy = "preserve",
     budgets: RunBudgets = RunBudgets(),
 ) -> dict[str, Any]:
     """Measure stateful Numba execution without retaining completed chunks."""
@@ -83,7 +87,11 @@ def benchmark_stability(
 
     constructed_at = perf_counter()
     prepared = SparseLIFSimulator(
-        graph, populations=populations, config=config, backend="numba"
+        graph,
+        populations=populations,
+        config=config,
+        backend="numba",
+        subnormal_drive_policy=subnormal_drive_policy,
     )
     construction_seconds = perf_counter() - constructed_at
     prepared_at = perf_counter()
@@ -113,6 +121,7 @@ def benchmark_stability(
                     chunk_duration_s=chunk_duration_s,
                     input_indices=inputs,
                     repeats=repeats,
+                    subnormal_drive_policy=subnormal_drive_policy,
                     budgets=budgets,
                 )
             )
@@ -130,6 +139,7 @@ def benchmark_stability(
             chunk_duration_s=chunk_duration_s,
             input_indices=selected,
             repeats=repeats,
+            subnormal_drive_policy=subnormal_drive_policy,
             budgets=budgets,
         )
     )
@@ -145,6 +155,7 @@ def benchmark_stability(
         ),
         "methodology": {
             "backend": "numba",
+            "subnormal_drive_policy": subnormal_drive_policy,
             "durations_s": list(durations_s),
             "chunk_duration_s": chunk_duration_s,
             "repeats": repeats,
@@ -209,6 +220,7 @@ def _run_scenario(
     chunk_duration_s: float,
     input_indices: np.ndarray[Any, Any],
     repeats: int,
+    subnormal_drive_policy: SubnormalDrivePolicy,
     budgets: RunBudgets,
 ) -> dict[str, Any]:
     runs = [
@@ -220,6 +232,7 @@ def _run_scenario(
             chunk_duration_s=chunk_duration_s,
             input_indices=input_indices,
             repeat_index=repeat_index,
+            subnormal_drive_policy=subnormal_drive_policy,
             budgets=budgets,
         )
         for repeat_index in range(repeats)
@@ -244,11 +257,16 @@ def _run_once(
     chunk_duration_s: float,
     input_indices: np.ndarray[Any, Any],
     repeat_index: int,
+    subnormal_drive_policy: SubnormalDrivePolicy,
     budgets: RunBudgets,
 ) -> dict[str, Any]:
     constructed_at = perf_counter()
     simulator = SparseLIFSimulator(
-        graph, populations=populations, config=config, backend="numba"
+        graph,
+        populations=populations,
+        config=config,
+        backend="numba",
+        subnormal_drive_policy=subnormal_drive_policy,
     )
     construction_seconds = perf_counter() - constructed_at
     simulator.prepare()
@@ -560,6 +578,12 @@ def main() -> None:
     parser.add_argument("--sparse-input-count", type=int, default=128)
     parser.add_argument("--stress-input-count", type=int, default=4096)
     parser.add_argument("--stress-duration", type=float, default=0.1)
+    parser.add_argument(
+        "--subnormal-drive-policy",
+        choices=("preserve", "zero"),
+        default="preserve",
+        help="Preserve exact IEEE subnormals or explicitly zero them at onset.",
+    )
     parser.add_argument("--max-wall-seconds", type=float, default=120.0)
     parser.add_argument("--max-rss-gib", type=float, default=2.0)
     parser.add_argument("--max-spikes", type=int, default=50_000_000)
@@ -576,6 +600,7 @@ def main() -> None:
         sparse_input_count=arguments.sparse_input_count,
         stress_input_count=arguments.stress_input_count,
         stress_duration_s=arguments.stress_duration,
+        subnormal_drive_policy=arguments.subnormal_drive_policy,
         budgets=RunBudgets(
             wall_seconds=arguments.max_wall_seconds,
             rss_bytes=round(arguments.max_rss_gib * 1024**3),

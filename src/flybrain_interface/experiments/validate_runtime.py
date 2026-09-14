@@ -17,7 +17,11 @@ from flybrain_interface.connectome_data.induced import (
 from flybrain_interface.connectome_data.runtime import MemoryMappedConnectome
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
 from flybrain_interface.simulation.reference import Brian2ReferenceSimulator
-from flybrain_interface.simulation.runtime import RuntimeBackend, SparseLIFSimulator
+from flybrain_interface.simulation.runtime import (
+    RuntimeBackend,
+    SparseLIFSimulator,
+    SubnormalDrivePolicy,
+)
 from flybrain_interface.simulation.trace import SimulationTrace
 
 
@@ -27,6 +31,7 @@ def validate_runtime(
     neuron_count: int = 64,
     duration_s: float = 0.012,
     neighborhood_count: int = 3,
+    subnormal_drive_policy: SubnormalDrivePolicy = "preserve",
 ) -> dict[str, object]:
     graph = MemoryMappedConnectome.load(data_directory)
     neighborhoods = strong_outgoing_neighborhoods(
@@ -71,10 +76,13 @@ def validate_runtime(
                         neighborhood_index=neighborhood_index,
                         case_name=case_name,
                         reference_seconds=reference_seconds,
+                        subnormal_drive_policy=subnormal_drive_policy,
                     )
                 )
 
-    full_runtime = SparseLIFSimulator(graph)
+    full_runtime = SparseLIFSimulator(
+        graph, subnormal_drive_policy=subnormal_drive_policy
+    )
     full_started = perf_counter()
     full_runtime.advance_chunk(duration_s=0.001)
     full_runtime_seconds = perf_counter() - full_started
@@ -98,6 +106,7 @@ def validate_runtime(
         "backend_comparisons": len(comparisons),
         "neurons_per_neighborhood": neuron_count,
         "duration_s": duration_s,
+        "subnormal_drive_policy": subnormal_drive_policy,
         "dt_ms": full_runtime.config.dt_ms,
         "neighborhood_metadata": neighborhood_metadata,
         "comparisons": comparisons,
@@ -129,8 +138,13 @@ def _compare_runtime(
     neighborhood_index: int,
     case_name: str,
     reference_seconds: float,
+    subnormal_drive_policy: SubnormalDrivePolicy,
 ) -> dict[str, object]:
-    runtime_simulator = SparseLIFSimulator(induced, backend=backend)
+    runtime_simulator = SparseLIFSimulator(
+        induced,
+        backend=backend,
+        subnormal_drive_policy=subnormal_drive_policy,
+    )
     runtime_started = perf_counter()
     runtime = runtime_simulator.run(
         stimulus,
@@ -207,12 +221,18 @@ def main() -> None:
     parser.add_argument("--neurons", type=int, default=64)
     parser.add_argument("--neighborhoods", type=int, default=3)
     parser.add_argument("--duration-ms", type=float, default=12.0)
+    parser.add_argument(
+        "--subnormal-drive-policy",
+        choices=("preserve", "zero"),
+        default="preserve",
+    )
     arguments = parser.parse_args()
     result = validate_runtime(
         arguments.data_directory,
         neuron_count=arguments.neurons,
         duration_s=arguments.duration_ms / 1000.0,
         neighborhood_count=arguments.neighborhoods,
+        subnormal_drive_policy=arguments.subnormal_drive_policy,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
 

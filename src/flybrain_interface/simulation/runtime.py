@@ -14,7 +14,10 @@ import numpy.typing as npt
 from flybrain_interface.contracts import NeuralReadout
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
 from flybrain_interface.simulation.config import ShiuLIFConfig
-from flybrain_interface.simulation.kernels import advance_state_numba
+from flybrain_interface.simulation.kernels import (
+    advance_state_numba,
+    advance_state_numba_zero_subnormal,
+)
 from flybrain_interface.simulation.trace import (
     ChunkRecording,
     ChunkResult,
@@ -24,6 +27,7 @@ from flybrain_interface.simulation.trace import (
 FloatArray = npt.NDArray[np.float64]
 IntArray = npt.NDArray[np.int64]
 RuntimeBackend = Literal["numpy", "numba"]
+SubnormalDrivePolicy = Literal["preserve", "zero"]
 
 
 class EventConnectivity(Protocol):
@@ -47,6 +51,7 @@ class SparseLIFSimulator:
     populations: Mapping[str, tuple[int, ...]] = field(default_factory=dict)
     config: ShiuLIFConfig = field(default_factory=ShiuLIFConfig)
     backend: RuntimeBackend = "numba"
+    subnormal_drive_policy: SubnormalDrivePolicy = "preserve"
     voltage_mv: FloatArray = field(init=False, repr=False)
     synaptic_drive_mv: FloatArray = field(init=False, repr=False)
     refractory_steps_left: IntArray = field(init=False, repr=False)
@@ -54,6 +59,7 @@ class SparseLIFSimulator:
     _membrane_decay: float = field(init=False, repr=False)
     _synapse_decay: float = field(init=False, repr=False)
     _drive_coupling: float = field(init=False, repr=False)
+    _minimum_preserved_drive_mv: float = field(init=False, repr=False)
     _spike_buffer: IntArray = field(init=False, repr=False)
     _refractory_index_buffer: IntArray = field(init=False, repr=False)
     _refractory_drive_buffer: FloatArray = field(init=False, repr=False)
@@ -68,6 +74,10 @@ class SparseLIFSimulator:
             raise ValueError("connectivity must contain neurons")
         if self.backend not in ("numpy", "numba"):
             raise ValueError(f"unsupported runtime backend: {self.backend}")
+        if self.subnormal_drive_policy not in ("preserve", "zero"):
+            raise ValueError(
+                f"unsupported subnormal drive policy: {self.subnormal_drive_policy}"
+            )
         self._validate_populations()
         cfg = self.config
         self._membrane_decay = exp(-cfg.dt_ms / cfg.membrane_tau_ms)
@@ -76,6 +86,11 @@ class SparseLIFSimulator:
             cfg.synapse_tau_ms
             / (cfg.synapse_tau_ms - cfg.membrane_tau_ms)
             * (self._synapse_decay - self._membrane_decay)
+        )
+        self._minimum_preserved_drive_mv = (
+            float(np.finfo(np.float64).tiny / self._synapse_decay)
+            if self.subnormal_drive_policy == "zero"
+            else 0.0
         )
         self.reset()
 
@@ -99,20 +114,28 @@ class SparseLIFSimulator:
         """Compile/load the selected backend without advancing persistent state."""
 
         if self.backend == "numba":
-            advance_state_numba(
-                self.voltage_mv,
-                self.synaptic_drive_mv,
-                self.refractory_steps_left,
-                self._spike_buffer,
-                self._refractory_index_buffer,
-                self._refractory_drive_buffer,
-                self.config.resting_mv,
-                self.config.threshold_mv,
-                self._membrane_decay,
-                self._synapse_decay,
-                self._drive_coupling,
-            )
+            self._advance_state_numba()
             self.reset()
+
+    def _advance_state_numba(self) -> tuple[int, int]:
+        arguments = (
+            self.voltage_mv,
+            self.synaptic_drive_mv,
+            self.refractory_steps_left,
+            self._spike_buffer,
+            self._refractory_index_buffer,
+            self._refractory_drive_buffer,
+            self.config.resting_mv,
+            self.config.threshold_mv,
+            self._membrane_decay,
+            self._synapse_decay,
+            self._drive_coupling,
+        )
+        if self.subnormal_drive_policy == "zero":
+            return advance_state_numba_zero_subnormal(
+                *arguments, self._minimum_preserved_drive_mv
+            )
+        return advance_state_numba(*arguments)
 
     def run(
         self,
@@ -275,19 +298,7 @@ class SparseLIFSimulator:
         cfg = self.config
         state_started = perf_counter()
         if self.backend == "numba":
-            spike_count, refractory_count = advance_state_numba(
-                self.voltage_mv,
-                self.synaptic_drive_mv,
-                self.refractory_steps_left,
-                self._spike_buffer,
-                self._refractory_index_buffer,
-                self._refractory_drive_buffer,
-                cfg.resting_mv,
-                cfg.threshold_mv,
-                self._membrane_decay,
-                self._synapse_decay,
-                self._drive_coupling,
-            )
+            spike_count, refractory_count = self._advance_state_numba()
         else:
             spike_count, refractory_count = self._advance_state_numpy()
         self.state_update_seconds += perf_counter() - state_started
@@ -345,6 +356,11 @@ class SparseLIFSimulator:
         refractory_indices = np.flatnonzero(~active)
         refractory_voltage = self.voltage_mv[refractory_indices].copy()
         refractory_drive = self.synaptic_drive_mv[refractory_indices].copy()
+        if self._minimum_preserved_drive_mv > 0.0:
+            small_drive = (self.synaptic_drive_mv != 0.0) & (
+                np.abs(self.synaptic_drive_mv) < self._minimum_preserved_drive_mv
+            )
+            self.synaptic_drive_mv[small_drive] = 0.0
         self.voltage_mv -= cfg.resting_mv
         self.voltage_mv *= self._membrane_decay
         self.voltage_mv += cfg.resting_mv

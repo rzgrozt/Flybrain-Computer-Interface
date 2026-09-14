@@ -117,6 +117,12 @@ backlog, and latency distributions under explicit wall-time, RSS, spike, and edg
 budgets. See [`docs/stability-benchmark-2026-09-14.md`](docs/stability-benchmark-2026-09-14.md)
 for the latest host-specific results and limitations.
 
+The exact runtime preserves IEEE float64 subnormals by default. For long sparse
+runs, an explicit `subnormal_drive_policy="zero"` approximation avoids the measured
+CPU subnormal-arithmetic cliff without changing global floating-point state. See
+[`docs/subnormal-drive-policy-2026-09-14.md`](docs/subnormal-drive-policy-2026-09-14.md)
+for the measured tradeoff and opt-in commands.
+
 ## Architectural boundaries
 
 Semantic translators can return only structured goals. Optional visual evaluators

@@ -100,3 +100,7 @@ was `45ad93d6f6d07906a19c1b1086f18e86c7ca3157c27f281232e0a8a8d710bdf5`; the
 transmitter policy was `inhibitory-glutamate-modulators-separated-v1`. The full
 machine-readable result is local at
 `artifacts/benchmarks/stability-full.json` and remains intentionally ignored by Git.
+
+A subsequent opt-in numerical policy removed the measured subnormal slowdown and
+completed the sparse 10-second case without changing the exact default. See
+[`subnormal-drive-policy-2026-09-14.md`](subnormal-drive-policy-2026-09-14.md).
