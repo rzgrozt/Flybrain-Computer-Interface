@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from flybrain_interface.experiments.sensory_descending import panel_presets
 from flybrain_interface.panel.controller import PanelController
 from flybrain_interface.panel.models import ActionResponse, ExperimentConfig
 
@@ -88,6 +89,10 @@ def create_app(
     async def status() -> dict[str, Any]:
         controller.poll_latest()
         return controller.latest
+
+    @app.get("/api/presets/sensory-descending")
+    async def sensory_descending_presets() -> dict[str, Any]:
+        return await asyncio.to_thread(panel_presets, controller.data_directory)
 
     @app.post("/api/experiments", response_model=ActionResponse, status_code=202)
     async def start_experiment(config: ExperimentConfig) -> ActionResponse:

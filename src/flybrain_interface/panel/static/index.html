@@ -27,6 +27,7 @@
       <div class="card controls">
         <div class="section-title"><div><p class="kicker">Protocol</p><h2>Controlled stimulus</h2></div><span class="safe">Bounded</span></div>
         <div class="form-grid">
+          <label>Population preset <span>annotation query</span><select id="preset"><option value="manual">Manual indices</option></select></label>
           <label>Duration <span>s</span><input id="duration" type="number" value="1" min="0.01" max="60" step="0.01"></label>
           <label>Target neurons <span>indices</span><input id="targets" value="0"></label>
           <label>Pulse interval <span>ms</span><input id="interval" type="number" value="5" min="0.1" step="0.1"></label>
@@ -36,6 +37,7 @@
           <label>Seed <span>integer</span><input id="seed" type="number" value="0" min="0"></label>
           <label>Subnormal drive <span>policy</span><select id="policy"><option value="preserve">Preserve exact (default)</option><option value="zero">Zero tiny values (faster approximation)</option></select></label>
         </div>
+        <p id="presetNote" class="note">Manual engineering stimulation and observation assignments.</p>
         <p id="policyNote" class="note">Exact IEEE-754 subnormal decay is preserved. This is the scientific default and can become slow in long sparse runs.</p>
         <div class="buttons"><button id="start" class="accent">Start experiment</button><button id="pause" disabled>Pause</button><button id="reset" disabled>Reset</button></div>
         <p id="error" role="alert"></p>
