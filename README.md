@@ -99,7 +99,8 @@ Run the reproducible full-network performance benchmark with:
 uv run python -m flybrain_interface.experiments.benchmark_runtime
 ```
 
-It reports quiet, deterministic sparse-input, and explicitly non-physiological
+It compares the exact NumPy fallback with the default serial Numba state kernel in
+quiet, deterministic sparse-input, and explicitly non-physiological
 engineering-stress scenarios. The simulated-to-wall ratio is defined as simulated
 seconds divided by wall seconds; values below 1 are slower than real time.
 

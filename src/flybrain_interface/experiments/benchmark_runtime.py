@@ -15,13 +15,14 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
+import numba
 import numpy as np
 
 from flybrain_interface.connectome_data.manifest import file_sha256
 from flybrain_interface.connectome_data.runtime import MemoryMappedConnectome
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
 from flybrain_interface.simulation.config import ShiuLIFConfig
-from flybrain_interface.simulation.runtime import SparseLIFSimulator
+from flybrain_interface.simulation.runtime import RuntimeBackend, SparseLIFSimulator
 
 DEFAULT_DATA_DIRECTORY = Path("data/processed/malecns-v1.0")
 DEFAULT_LOCK = Path("data/manifests/malecns-v1.0-normalized-v2.json")
@@ -37,6 +38,7 @@ def benchmark_full_network(
     active_steps: int = 50,
     sparse_input_count: int = 128,
     stress_input_count: int = 4096,
+    backends: tuple[RuntimeBackend, ...] = ("numpy", "numba"),
 ) -> dict[str, Any]:
     if repeats <= 0:
         raise ValueError("repeats must be positive")
@@ -44,6 +46,8 @@ def benchmark_full_network(
         raise ValueError("quiet_steps must contain positive values")
     if active_steps <= 0:
         raise ValueError("active_steps must be positive")
+    if not backends or len(set(backends)) != len(backends):
+        raise ValueError("backends must be non-empty and unique")
 
     rss_before = _current_rss_bytes()
     loaded_at = perf_counter()
@@ -57,57 +61,61 @@ def benchmark_full_network(
     sparse_count = min(sparse_input_count, excitatory.size)
     selected = rng.choice(excitatory, size=stress_count, replace=False)
 
+    initialization = {
+        backend: _benchmark_initialization(graph, config, backend=backend)
+        for backend in backends
+    }
     scenarios: list[dict[str, Any]] = []
-    for steps in quiet_steps:
+    for backend in backends:
+        for steps in quiet_steps:
+            scenarios.append(
+                _benchmark_scenario(
+                    graph,
+                    config,
+                    backend=backend,
+                    name=f"quiet-{steps}-steps",
+                    label="no external input",
+                    steps=steps,
+                    input_indices=np.empty(0, dtype=np.int64),
+                    repeats=repeats,
+                )
+            )
         scenarios.append(
             _benchmark_scenario(
                 graph,
                 config,
-                name=f"quiet-{steps}-steps",
-                label="no external input",
-                steps=steps,
-                input_indices=np.empty(0, dtype=np.int64),
+                backend=backend,
+                name="sparse-deterministic-input",
+                label="engineering input: 128 excitatory neurons (or configured count)",
+                steps=active_steps,
+                input_indices=selected[:sparse_count],
                 repeats=repeats,
             )
         )
-    scenarios.append(
-        _benchmark_scenario(
-            graph,
-            config,
-            name="sparse-deterministic-input",
-            label="engineering input: 128 excitatory neurons (or configured count)",
-            steps=active_steps,
-            input_indices=selected[:sparse_count],
-            repeats=repeats,
+        scenarios.append(
+            _benchmark_scenario(
+                graph,
+                config,
+                backend=backend,
+                name="dense-engineering-stress",
+                label=(
+                    "non-physiological engineering stress test; not a biological "
+                    "activity assumption"
+                ),
+                steps=active_steps,
+                input_indices=selected,
+                repeats=repeats,
+            )
         )
-    )
-    scenarios.append(
-        _benchmark_scenario(
-            graph,
-            config,
-            name="dense-engineering-stress",
-            label=(
-                "non-physiological engineering stress test; not a biological "
-                "activity assumption"
-            ),
-            steps=active_steps,
-            input_indices=selected,
-            repeats=repeats,
-        )
-    )
     isolated_propagation = _benchmark_propagation(
         graph, selected[:sparse_count], repeats=repeats
     )
 
     return {
-        "benchmark_schema_version": 1,
+        "benchmark_schema_version": 2,
         "ratio_definition": "simulated_time_seconds / wall_time_seconds",
-        "backend": "numpy-reference-runtime",
-        "jit": {
-            "enabled": False,
-            "cold_initialization_seconds": 0.0,
-            "warm_initialization_seconds": 0.0,
-        },
+        "backends": list(backends),
+        "backend_initialization": initialization,
         "host": _host_details(),
         "provenance": {
             "dataset_directory": str(graph.directory),
@@ -132,7 +140,8 @@ def benchmark_full_network(
         "limitations": [
             "Scenario execution includes reset, threshold detection, delay handling, "
             "and legacy all-neuron spike-history construction.",
-            "Watchlist recording cost is not yet isolated from state execution.",
+            "First prepare time includes disk-cache loading or compilation and is "
+            "process-dependent.",
             "Dense stress input is an engineering load case, not physiological data.",
         ],
     }
@@ -142,6 +151,7 @@ def _benchmark_scenario(
     graph: MemoryMappedConnectome,
     config: ShiuLIFConfig,
     *,
+    backend: RuntimeBackend,
     name: str,
     label: str,
     steps: int,
@@ -157,22 +167,29 @@ def _benchmark_scenario(
     execution_times: list[float] = []
     spike_counts: list[int] = []
     visited_edges: list[int] = []
+    state_update_times: list[float] = []
+    propagation_times: list[float] = []
+    recording_times: list[float] = []
 
     # One unreported warm-up controls page faults and allocator initialization.
-    warmup = SparseLIFSimulator(graph, config=config)
+    warmup = SparseLIFSimulator(graph, config=config, backend=backend)
+    warmup.prepare()
     warmup.run(stimulus, duration_s=duration_s)
     del warmup
     gc.collect()
 
     for _ in range(repeats):
         constructed_at = perf_counter()
-        simulator = SparseLIFSimulator(graph, config=config)
+        simulator = SparseLIFSimulator(graph, config=config, backend=backend)
         construction_times.append(perf_counter() - constructed_at)
         executed_at = perf_counter()
         trace = simulator.run(stimulus, duration_s=duration_s)
         execution_times.append(perf_counter() - executed_at)
         spike_counts.append(sum(trace.readout.neuron_spike_counts))
         visited_edges.append(simulator.visited_edges)
+        state_update_times.append(simulator.state_update_seconds)
+        propagation_times.append(simulator.synaptic_propagation_seconds)
+        recording_times.append(simulator.recording_seconds)
         del trace, simulator
         gc.collect()
 
@@ -180,6 +197,7 @@ def _benchmark_scenario(
     median_wall = execution_summary["median_seconds"]
     return {
         "name": name,
+        "backend": backend,
         "label": label,
         "steps": steps,
         "simulated_time_seconds": duration_s,
@@ -192,11 +210,36 @@ def _benchmark_scenario(
         "visited_edge_runs": visited_edges,
         "repeatable_counts": len(set(spike_counts)) == 1,
         "repeatable_visited_edges": len(set(visited_edges)) == 1,
+        "phase_totals": {
+            "state_update": _timing_summary(state_update_times),
+            "synaptic_propagation": _timing_summary(propagation_times),
+            "recording": _timing_summary(recording_times),
+        },
         "recording": {
             "watchlist_neurons": 0,
             "detailed_spike_history": True,
             "all_neuron_counts": True,
         },
+    }
+
+
+def _benchmark_initialization(
+    graph: MemoryMappedConnectome,
+    config: ShiuLIFConfig,
+    *,
+    backend: RuntimeBackend,
+) -> dict[str, float | bool]:
+    simulator = SparseLIFSimulator(graph, config=config, backend=backend)
+    first_started = perf_counter()
+    simulator.prepare()
+    first_seconds = perf_counter() - first_started
+    warm_started = perf_counter()
+    simulator.prepare()
+    warm_seconds = perf_counter() - warm_started
+    return {
+        "jit_enabled": backend == "numba",
+        "first_prepare_seconds": first_seconds,
+        "warm_prepare_seconds": warm_seconds,
     }
 
 
@@ -242,6 +285,7 @@ def _host_details() -> dict[str, object]:
         "logical_cpu_count": os.cpu_count(),
         "python": sys.version,
         "numpy": np.__version__,
+        "numba": numba.__version__,
         "total_memory_bytes": os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES"),
     }
 
@@ -279,6 +323,9 @@ def main() -> None:
     parser.add_argument("--active-steps", type=int, default=50)
     parser.add_argument("--sparse-input-count", type=int, default=128)
     parser.add_argument("--stress-input-count", type=int, default=4096)
+    parser.add_argument(
+        "--backend", choices=("numpy", "numba"), nargs="+", default=["numpy", "numba"]
+    )
     arguments = parser.parse_args()
     result = benchmark_full_network(
         arguments.data_directory,
@@ -289,6 +336,7 @@ def main() -> None:
         active_steps=arguments.active_steps,
         sparse_input_count=arguments.sparse_input_count,
         stress_input_count=arguments.stress_input_count,
+        backends=tuple(arguments.backend),
     )
     print(json.dumps(result, indent=2, sort_keys=True))
 

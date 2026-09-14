@@ -12,6 +12,7 @@ authors = [{ name = "FlyBrain Computer Interface contributors" }]
 dependencies = [
     "brian2>=2.9.0",
     "duckdb>=1.5.5",
+    "numba>=0.61",
     "numpy>=1.26,<2.4",
     "pyarrow>=25.0.1",
     "scipy>=1.17.1",

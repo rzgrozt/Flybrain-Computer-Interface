@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from math import exp, isclose
-from typing import Protocol
+from time import perf_counter
+from typing import Literal, Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -13,10 +14,12 @@ import numpy.typing as npt
 from flybrain_interface.contracts import NeuralReadout
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
 from flybrain_interface.simulation.config import ShiuLIFConfig
+from flybrain_interface.simulation.kernels import advance_state_numba
 from flybrain_interface.simulation.trace import SimulationTrace
 
 FloatArray = npt.NDArray[np.float64]
 IntArray = npt.NDArray[np.int64]
+RuntimeBackend = Literal["numpy", "numba"]
 
 
 class EventConnectivity(Protocol):
@@ -39,6 +42,7 @@ class SparseLIFSimulator:
     connectivity: EventConnectivity
     populations: Mapping[str, tuple[int, ...]] = field(default_factory=dict)
     config: ShiuLIFConfig = field(default_factory=ShiuLIFConfig)
+    backend: RuntimeBackend = "numba"
     voltage_mv: FloatArray = field(init=False, repr=False)
     synaptic_drive_mv: FloatArray = field(init=False, repr=False)
     refractory_steps_left: IntArray = field(init=False, repr=False)
@@ -46,12 +50,20 @@ class SparseLIFSimulator:
     _membrane_decay: float = field(init=False, repr=False)
     _synapse_decay: float = field(init=False, repr=False)
     _drive_coupling: float = field(init=False, repr=False)
+    _spike_buffer: IntArray = field(init=False, repr=False)
+    _refractory_index_buffer: IntArray = field(init=False, repr=False)
+    _refractory_drive_buffer: FloatArray = field(init=False, repr=False)
     _step_index: int = field(init=False, default=0, repr=False)
     visited_edges: int = field(init=False, default=0)
+    state_update_seconds: float = field(init=False, default=0.0)
+    synaptic_propagation_seconds: float = field(init=False, default=0.0)
+    recording_seconds: float = field(init=False, default=0.0)
 
     def __post_init__(self) -> None:
         if self.connectivity.neuron_count <= 0:
             raise ValueError("connectivity must contain neurons")
+        if self.backend not in ("numpy", "numba"):
+            raise ValueError(f"unsupported runtime backend: {self.backend}")
         self._validate_populations()
         cfg = self.config
         self._membrane_decay = exp(-cfg.dt_ms / cfg.membrane_tau_ms)
@@ -68,10 +80,35 @@ class SparseLIFSimulator:
         self.voltage_mv = np.full(count, self.config.resting_mv, dtype=np.float64)
         self.synaptic_drive_mv = np.zeros(count, dtype=np.float64)
         self.refractory_steps_left = np.zeros(count, dtype=np.int64)
+        self._spike_buffer = np.empty(count, dtype=np.int64)
+        self._refractory_index_buffer = np.empty(count, dtype=np.int64)
+        self._refractory_drive_buffer = np.empty(count, dtype=np.float64)
         ring_size = max(1, self.config.delay_steps + 1)
         self._delay_ring = [np.empty(0, dtype=np.int64) for _ in range(ring_size)]
         self._step_index = 0
         self.visited_edges = 0
+        self.state_update_seconds = 0.0
+        self.synaptic_propagation_seconds = 0.0
+        self.recording_seconds = 0.0
+
+    def prepare(self) -> None:
+        """Compile/load the selected backend without advancing persistent state."""
+
+        if self.backend == "numba":
+            advance_state_numba(
+                self.voltage_mv,
+                self.synaptic_drive_mv,
+                self.refractory_steps_left,
+                self._spike_buffer,
+                self._refractory_index_buffer,
+                self._refractory_drive_buffer,
+                self.config.resting_mv,
+                self.config.threshold_mv,
+                self._membrane_decay,
+                self._synapse_decay,
+                self._drive_coupling,
+            )
+            self.reset()
 
     def run(
         self,
@@ -105,11 +142,13 @@ class SparseLIFSimulator:
         for step in range(step_count):
             external_indices = input_schedule.get(step)
             spikes = self._advance(external_indices, stimulus.amplitude_mv)
+            recording_started = perf_counter()
             time_s = step * self.config.dt_ms / 1000.0
             for neuron in spikes:
                 spike_times[int(neuron)].append(time_s)
             voltage_trace[step] = self.voltage_mv[watch]
             drive_trace[step] = self.synaptic_drive_mv[watch]
+            self.recording_seconds += perf_counter() - recording_started
 
         immutable_times = tuple(tuple(times) for times in spike_times)
         counts = tuple(len(times) for times in immutable_times)
@@ -135,6 +174,74 @@ class SparseLIFSimulator:
         self, external_indices: IntArray | None, external_amplitude_mv: float
     ) -> IntArray:
         cfg = self.config
+        state_started = perf_counter()
+        if self.backend == "numba":
+            spike_count, refractory_count = advance_state_numba(
+                self.voltage_mv,
+                self.synaptic_drive_mv,
+                self.refractory_steps_left,
+                self._spike_buffer,
+                self._refractory_index_buffer,
+                self._refractory_drive_buffer,
+                cfg.resting_mv,
+                cfg.threshold_mv,
+                self._membrane_decay,
+                self._synapse_decay,
+                self._drive_coupling,
+            )
+        else:
+            spike_count, refractory_count = self._advance_state_numpy()
+        self.state_update_seconds += perf_counter() - state_started
+        spikes = self._spike_buffer[:spike_count]
+        refractory_indices = self._refractory_index_buffer[:refractory_count]
+        refractory_drive = self._refractory_drive_buffer[:refractory_count]
+
+        propagation_started = perf_counter()
+        due_slot = self._step_index % len(self._delay_ring)
+        due_sources = self._delay_ring[due_slot]
+        self._delay_ring[due_slot] = np.empty(0, dtype=np.int64)
+        if due_sources.size:
+            self.visited_edges += self.connectivity.accumulate_spikes(
+                due_sources,
+                self.synaptic_drive_mv,
+                amplitudes=cfg.synapse_scale_mv,
+            )
+            # Brian2's ``unless refractory`` suppresses synaptic writes to g.
+            self.synaptic_drive_mv[refractory_indices] = refractory_drive
+        self.synaptic_propagation_seconds += perf_counter() - propagation_started
+        if external_indices is not None:
+            receptive = external_indices[
+                ~np.isin(external_indices, refractory_indices, assume_unique=True)
+            ]
+            self.voltage_mv[receptive] += external_amplitude_mv
+
+        if spikes.size:
+            emitted_spikes = spikes.copy()
+            if cfg.delay_steps == 0:
+                propagation_started = perf_counter()
+                self.visited_edges += self.connectivity.accumulate_spikes(
+                    spikes,
+                    self.synaptic_drive_mv,
+                    amplitudes=cfg.synapse_scale_mv,
+                )
+                self.synaptic_drive_mv[refractory_indices] = refractory_drive
+                self.synaptic_propagation_seconds += (
+                    perf_counter() - propagation_started
+                )
+            else:
+                delivery_slot = (self._step_index + cfg.delay_steps) % len(
+                    self._delay_ring
+                )
+                self._delay_ring[delivery_slot] = emitted_spikes
+            self.voltage_mv[spikes] = cfg.reset_mv
+            self.synaptic_drive_mv[spikes] = 0.0
+            self.refractory_steps_left[spikes] = max(0, cfg.refractory_steps - 1)
+
+        self._step_index += 1
+        return spikes.copy() if not spikes.size else emitted_spikes
+
+    def _advance_state_numpy(self) -> tuple[int, int]:
+        cfg = self.config
         active = self.refractory_steps_left == 0
         refractory_indices = np.flatnonzero(~active)
         refractory_voltage = self.voltage_mv[refractory_indices].copy()
@@ -151,43 +258,10 @@ class SparseLIFSimulator:
         spikes = np.flatnonzero(active & (self.voltage_mv > cfg.threshold_mv)).astype(
             np.int64, copy=False
         )
-        due_slot = self._step_index % len(self._delay_ring)
-        due_sources = self._delay_ring[due_slot]
-        self._delay_ring[due_slot] = np.empty(0, dtype=np.int64)
-        if due_sources.size:
-            self.visited_edges += self.connectivity.accumulate_spikes(
-                due_sources,
-                self.synaptic_drive_mv,
-                amplitudes=cfg.synapse_scale_mv,
-            )
-            # Brian2's ``unless refractory`` also suppresses synaptic writes to g.
-            self.synaptic_drive_mv[refractory_indices] = refractory_drive
-        if external_indices is not None:
-            receptive = external_indices[active[external_indices]]
-            self.voltage_mv[receptive] += external_amplitude_mv
-
-        if spikes.size:
-            if cfg.delay_steps == 0:
-                self.visited_edges += self.connectivity.accumulate_spikes(
-                    spikes,
-                    self.synaptic_drive_mv,
-                    amplitudes=cfg.synapse_scale_mv,
-                )
-                self.synaptic_drive_mv[refractory_indices] = refractory_drive
-            else:
-                delivery_slot = (self._step_index + cfg.delay_steps) % len(
-                    self._delay_ring
-                )
-                self._delay_ring[delivery_slot] = spikes
-            self.voltage_mv[spikes] = cfg.reset_mv
-            self.synaptic_drive_mv[spikes] = 0.0
-            # The spike/reset occurs on the current grid point. Brian2 resumes
-            # integration at exactly ``spike_time + refractory``, so only the
-            # intervening grid points are skipped.
-            self.refractory_steps_left[spikes] = max(0, cfg.refractory_steps - 1)
-
-        self._step_index += 1
-        return spikes
+        self._spike_buffer[: spikes.size] = spikes
+        self._refractory_index_buffer[: refractory_indices.size] = refractory_indices
+        self._refractory_drive_buffer[: refractory_indices.size] = refractory_drive
+        return int(spikes.size), int(refractory_indices.size)
 
     def _input_schedule(
         self, stimulus: DeterministicSpikeInput, step_count: int

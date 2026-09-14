@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from flybrain_interface.connectome_data.induced import InducedConnectome
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
 from flybrain_interface.simulation.reference import Brian2ReferenceSimulator
-from flybrain_interface.simulation.runtime import SparseLIFSimulator
+from flybrain_interface.simulation.runtime import RuntimeBackend, SparseLIFSimulator
 
 
-def test_sparse_runtime_matches_brian2_spikes_and_trajectories() -> None:
+@pytest.mark.parametrize("backend", ["numpy", "numba"])
+def test_sparse_runtime_matches_brian2_spikes_and_trajectories(
+    backend: RuntimeBackend,
+) -> None:
     graph = InducedConnectome(
         original_indices=np.arange(3, dtype=np.int64),
         outgoing_indptr=np.array([0, 1, 2, 3], dtype=np.int64),
@@ -23,7 +27,7 @@ def test_sparse_runtime_matches_brian2_spikes_and_trajectories() -> None:
     reference = Brian2ReferenceSimulator(graph.as_sparse_connectivity()).trace(
         stimulus, duration_s=0.012, watched_indices=watched
     )
-    runtime = SparseLIFSimulator(graph).run(
+    runtime = SparseLIFSimulator(graph, backend=backend).run(
         stimulus, duration_s=0.012, watched_indices=watched
     )
 
@@ -48,7 +52,10 @@ def test_sparse_runtime_matches_brian2_spikes_and_trajectories() -> None:
     )
 
 
-def test_recurrent_input_is_accepted_at_exact_refractory_boundary() -> None:
+@pytest.mark.parametrize("backend", ["numpy", "numba"])
+def test_recurrent_input_is_accepted_at_exact_refractory_boundary(
+    backend: RuntimeBackend,
+) -> None:
     graph = InducedConnectome(
         original_indices=np.arange(2, dtype=np.int64),
         outgoing_indptr=np.array([0, 1, 1], dtype=np.int64),
@@ -63,7 +70,7 @@ def test_recurrent_input_is_accepted_at_exact_refractory_boundary() -> None:
     reference = Brian2ReferenceSimulator(graph.as_sparse_connectivity()).trace(
         stimulus, duration_s=0.005, watched_indices=watched
     )
-    runtime = SparseLIFSimulator(graph).run(
+    runtime = SparseLIFSimulator(graph, backend=backend).run(
         stimulus, duration_s=0.005, watched_indices=watched
     )
 

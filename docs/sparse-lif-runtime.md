@@ -9,9 +9,11 @@ dg/dt = -g / tau_synapse
 ```
 
 The coupled linear state update is evaluated analytically at each 0.1 ms grid
-point. It is not an Euler approximation. Recurrent spikes are held in a sparse
-18-step ring and delivered through the source-major graph after the configured
-1.8 ms delay.
+point. It is not an Euler approximation. The default backend executes that exact
+update in a serial Numba kernel with `fastmath=False`; a NumPy implementation is
+retained as an independent fallback. Recurrent spikes are held in a sparse 18-step
+ring and delivered through the source-major graph after the configured 1.8 ms
+delay.
 
 ## Scheduling semantics
 
@@ -59,17 +61,24 @@ For performance measurement, use:
 uv run python -m flybrain_interface.experiments.benchmark_runtime
 ```
 
-The benchmark records host/runtime and dataset/configuration provenance, repeated
-minimum/median/maximum timings, loading and construction time, peak process memory,
-spikes, visited edges, and simulated-time/wall-time ratio. It uses increasing quiet
-durations to expose fixed overhead and bounded active runs to avoid an uncontrolled
-activity cascade. Its dense-input case is explicitly an engineering stress test,
-not a physiological activity model.
+The benchmark compares NumPy and Numba backends and records host/runtime and
+dataset/configuration provenance, first and warm preparation time, repeated
+minimum/median/maximum timings, per-phase costs, loading and construction time,
+peak process memory, spikes, visited edges, and simulated-time/wall-time ratio. It
+uses increasing quiet durations to expose fixed overhead and bounded active runs to
+avoid an uncontrolled activity cascade. Its dense-input case is explicitly an
+engineering stress test, not a physiological activity model.
+
+On the development host, the accepted full-network measurement reduced the
+100-step quiet median from 0.625 to 0.409 ms/step and the sparse-input median from
+1.105 to 0.677 ms/step. Spike and visited-edge counts were identical across all
+repeats and backends. These are host-specific engineering measurements, not
+biological-performance claims.
 
 ## Current limitation
 
-Synaptic propagation is event-driven, but membrane and conductance decay still scan
-the complete neuron state each 0.1 ms step. Initial profiling shows that this dense
-state update, not graph traversal, is now the dominant full-network cost. The next
-optimization should compile and benchmark the state kernel while retaining this
-Brian2 trace suite as the semantic gate.
+The membrane and conductance update still scans the complete neuron state each
+0.1 ms step. Numba makes that scan cheaper, but the current implementation remains
+slower than real time on the development host. Under dense engineering load,
+source-edge propagation becomes the dominant measured phase. Optimization must
+continue to preserve the NumPy and Brian2 equivalence gates.
