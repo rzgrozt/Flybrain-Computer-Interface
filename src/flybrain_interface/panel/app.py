@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -13,8 +14,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from flybrain_interface.experiments.sensory_descending import panel_presets
+from flybrain_interface.panel.anatomy import ATLAS_DIRECTORY, AtlasJoin
 from flybrain_interface.panel.controller import PanelController
-from flybrain_interface.panel.models import ActionResponse, ExperimentConfig
+from flybrain_interface.panel.models import (
+    ActionResponse,
+    AnatomyMapRequest,
+    ExperimentConfig,
+    NeighborhoodRequest,
+)
 
 STATIC_DIRECTORY = Path(__file__).with_name("static")
 
@@ -57,6 +64,18 @@ def create_app(
     output_directory = output_directory or Path("runs/panel")
     controller = PanelController(data_directory, output_directory)
     hub = TelemetryHub()
+    anatomy: AtlasJoin | None = None
+    anatomy_lock = threading.Lock()
+
+    def get_anatomy() -> AtlasJoin:
+        nonlocal anatomy
+        if anatomy is None:
+            with anatomy_lock:
+                if anatomy is None:
+                    anatomy = AtlasJoin.load(
+                        ATLAS_DIRECTORY, controller.data_directory
+                    )
+        return anatomy
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -93,6 +112,35 @@ def create_app(
     @app.get("/api/presets/sensory-descending")
     async def sensory_descending_presets() -> dict[str, Any]:
         return await asyncio.to_thread(panel_presets, controller.data_directory)
+
+    @app.get("/api/anatomy")
+    async def anatomy_summary() -> dict[str, Any]:
+        try:
+            joined = await asyncio.to_thread(get_anatomy)
+        except (FileNotFoundError, ValueError) as error:
+            raise HTTPException(503, str(error)) from error
+        return joined.summary()
+
+    @app.post("/api/anatomy/map")
+    async def anatomy_map(request: AnatomyMapRequest) -> dict[str, Any]:
+        try:
+            joined = await asyncio.to_thread(get_anatomy)
+            return joined.map_indices(request.neuron_indices)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
+
+    @app.post("/api/anatomy/neighborhood")
+    async def anatomy_neighborhood(request: NeighborhoodRequest) -> dict[str, Any]:
+        try:
+            joined = await asyncio.to_thread(get_anatomy)
+            return joined.neighborhood(
+                request.seed_indices,
+                max_nodes=request.max_nodes,
+                max_edges=request.max_edges,
+                min_synapse_count=request.min_synapse_count,
+            )
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
 
     @app.post("/api/experiments", response_model=ActionResponse, status_code=202)
     async def start_experiment(config: ExperimentConfig) -> ActionResponse:

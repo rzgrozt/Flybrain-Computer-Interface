@@ -11,6 +11,7 @@ def test_experiment_defaults_to_exact_subnormal_preservation() -> None:
 
     assert config.subnormal_drive_policy == "preserve"
     assert config.watch_indices == [0]
+    assert config.visualization_indices == [0]
 
 
 def test_experiment_rejects_unbounded_or_ambiguous_targets() -> None:
@@ -20,6 +21,8 @@ def test_experiment_rejects_unbounded_or_ambiguous_targets() -> None:
         ExperimentConfig(watch_indices=list(range(33)))
     with pytest.raises(ValidationError):
         ExperimentConfig(stimulus=StimulusConfig(neuron_indices=[2, 2]))
+    with pytest.raises(ValidationError):
+        ExperimentConfig(visualization_indices=list(range(4097)))
 
 
 def test_stimulus_window_must_fit_experiment() -> None:

@@ -59,6 +59,9 @@ class ExperimentConfig(BaseModel):
     chunk_duration_s: float = Field(default=0.02, ge=0.001, le=0.25)
     telemetry_hz: float = Field(default=10.0, ge=1.0, le=30.0)
     watch_indices: list[int] = Field(default_factory=lambda: [0], max_length=32)
+    visualization_indices: list[int] = Field(
+        default_factory=lambda: [0], max_length=4096
+    )
     populations: list[PopulationConfig] = Field(
         default_factory=lambda: [
             PopulationConfig(name="stimulus targets", neuron_indices=[0])
@@ -74,6 +77,13 @@ class ExperimentConfig(BaseModel):
             raise ValueError("watch indices must be unique and non-negative")
         return values
 
+    @field_validator("visualization_indices")
+    @classmethod
+    def unique_visualization_indices(cls, values: list[int]) -> list[int]:
+        if len(values) != len(set(values)) or any(value < 0 for value in values):
+            raise ValueError("visualization indices must be unique and non-negative")
+        return values
+
     @model_validator(mode="after")
     def aligned_bounds(self) -> ExperimentConfig:
         if self.chunk_duration_s > self.duration_s:
@@ -84,6 +94,33 @@ class ExperimentConfig(BaseModel):
         if len(names) != len(set(names)):
             raise ValueError("population names must be unique")
         return self
+
+
+class AnatomyMapRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    neuron_indices: list[int] = Field(max_length=4096)
+
+    @field_validator("neuron_indices")
+    @classmethod
+    def unique_indices(cls, values: list[int]) -> list[int]:
+        if len(values) != len(set(values)) or any(value < 0 for value in values):
+            raise ValueError("neuron indices must be unique and non-negative")
+        return values
+
+
+class NeighborhoodRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    seed_indices: list[int] = Field(min_length=1, max_length=64)
+    max_nodes: int = Field(default=128, ge=2, le=256)
+    max_edges: int = Field(default=512, ge=1, le=2048)
+    min_synapse_count: int = Field(default=5, ge=1, le=2**31 - 1)
+
+    @field_validator("seed_indices")
+    @classmethod
+    def unique_seeds(cls, values: list[int]) -> list[int]:
+        if len(values) != len(set(values)) or any(value < 0 for value in values):
+            raise ValueError("seed indices must be unique and non-negative")
+        return values
 
 
 class ActionResponse(BaseModel):

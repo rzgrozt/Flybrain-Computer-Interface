@@ -27,7 +27,7 @@ flybrain-data = "flybrain_interface.connectome_data.cli:main"
 flybrain-panel = "flybrain_interface.panel.cli:main"
 
 [tool.setuptools.package-data]
-flybrain_interface = ["panel/static/*"]
+flybrain_interface = ["panel/static/*", "panel/static/brain-atlas/*"]
 
 [dependency-groups]
 dev = [

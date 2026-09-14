@@ -20,6 +20,7 @@ import numpy as np
 import psutil
 
 from flybrain_interface.connectome_data.runtime import MemoryMappedConnectome
+from flybrain_interface.panel.anatomy import ATLAS_DIRECTORY, AtlasJoin
 from flybrain_interface.panel.models import ExperimentConfig
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
 from flybrain_interface.simulation.config import ShiuLIFConfig
@@ -73,6 +74,17 @@ def worker_main(
             try:
                 command = commands.get(timeout=0.1)
             except queue.Empty:
+                # A one-slot multiprocessing queue can transiently reject the
+                # first transition frame while its feeder drains. Re-announce
+                # paused state at the bounded telemetry rate so resume remains
+                # available without making the simulation wait for a consumer.
+                if session is not None and session.status == "paused":
+                    if session.telemetry_due():
+                        dropped_total = publish_latest(
+                            telemetry,
+                            session.snapshot("paused_heartbeat"),
+                            dropped_total,
+                        )
                 continue
         else:
             try:
@@ -171,12 +183,14 @@ class WorkerSession:
         connectome: PanelConnectome,
         output_path: Path,
         dataset_report: dict[str, Any],
+        atlas_join: AtlasJoin | None = None,
     ) -> None:
         self.config = config
         self.simulator = simulator
         self.connectome = connectome
         self.output_path = output_path
         self.dataset_report = dataset_report
+        self.atlas_join = atlas_join
         self.experiment_id = output_path.name
         self.status = "running"
         self.started_at = datetime.now(UTC).isoformat()
@@ -191,6 +205,7 @@ class WorkerSession:
         self.last_drive: list[float] = []
         self.chunks = 0
         self.loop_seconds = 0.0
+        self.last_activity_frame = _empty_activity_frame(config.chunk_duration_s)
 
     @classmethod
     def create(
@@ -216,7 +231,15 @@ class WorkerSession:
         output_path = output_directory / experiment_id
         output_path.mkdir(parents=True, exist_ok=False)
         report = _dataset_provenance(data_directory)
-        session = cls(config, simulator, graph, output_path, report)
+        atlas_join = AtlasJoin.load(ATLAS_DIRECTORY, data_directory)
+        session = cls(
+            config,
+            simulator,
+            graph,
+            output_path,
+            report,
+            atlas_join=atlas_join,
+        )
         session.write_manifest("running")
         return session
 
@@ -236,6 +259,7 @@ class WorkerSession:
             duration_s=chunk_s,
             recording=ChunkRecording(
                 watched_indices=tuple(self.config.watch_indices),
+                include_neuron_counts=bool(self.config.visualization_indices),
                 max_spike_events=0,
             ),
         )
@@ -244,6 +268,12 @@ class WorkerSession:
         self.last_chunk_spikes = result.total_spikes
         self.total_spikes += result.total_spikes
         self.last_rates = result.population_rates_hz
+        self.last_activity_frame = build_activity_frame(
+            self.config.visualization_indices,
+            result.neuron_spike_counts,
+            result.duration_s,
+            self.atlas_join,
+        )
         if result.voltage_mv.size:
             self.last_voltage = result.voltage_mv[-1].tolist()
             self.last_drive = result.synaptic_drive_mv[-1].tolist()
@@ -325,6 +355,7 @@ class WorkerSession:
             "chunks": self.chunks,
             "visited_edges": self.simulator.visited_edges,
             "subnormal_drive_policy": self.config.subnormal_drive_policy,
+            "brain_activity": self.last_activity_frame,
         }
 
     def finish(self, status: str, *, error: str | None = None) -> None:
@@ -358,6 +389,9 @@ class WorkerSession:
                 "watchlist_limit": 32,
                 "telemetry_hz": self.config.telemetry_hz,
                 "spike_event_history_limit": 0,
+                "visualization_neuron_limit": 4096,
+                "visualization_signal": "emitted simulated spike count per chunk",
+                "visualization_normalization_reference_rate_hz": 50.0,
             },
             "numerical_approximation": (
                 "none; preserve exact IEEE-754 subnormal decay"
@@ -385,7 +419,11 @@ class WorkerSession:
 
 
 def _validate_indices(config: ExperimentConfig, neuron_count: int) -> None:
-    groups = [config.watch_indices, config.stimulus.neuron_indices]
+    groups = [
+        config.watch_indices,
+        config.visualization_indices,
+        config.stimulus.neuron_indices,
+    ]
     groups.extend(population.neuron_indices for population in config.populations)
     if any(index >= neuron_count for group in groups for index in group):
         raise ValueError(f"neuron index must be below {neuron_count}")
@@ -459,3 +497,58 @@ def publish_latest(
 
 def _rss_bytes() -> int:
     return int(psutil.Process().memory_info().rss)
+
+
+def build_activity_frame(
+    selected_indices: list[int],
+    counts: np.ndarray[Any, np.dtype[np.int64]] | None,
+    bin_duration_s: float,
+    atlas_join: AtlasJoin | None,
+) -> dict[str, Any]:
+    """Aggregate one bounded chunk; never retain or interpolate spike events."""
+
+    frame = _empty_activity_frame(bin_duration_s)
+    frame["selected_neuron_count"] = len(selected_indices)
+    if counts is None or not selected_indices:
+        return frame
+    selected = np.asarray(selected_indices, dtype=np.int64)
+    active = selected[counts[selected] > 0]
+    values: list[list[Any]] = []
+    without_visible_soma = 0
+    for index in active:
+        neuron_index = int(index)
+        spike_count = int(counts[neuron_index])
+        if atlas_join is None:
+            body_id = str(neuron_index)
+            visible = False
+        else:
+            body_id = str(int(atlas_join.body_ids_by_index[neuron_index]))
+            visible = int(atlas_join.visible_atlas_row_by_index[neuron_index]) >= 0
+        if not visible:
+            without_visible_soma += 1
+            continue
+        rate_hz = spike_count / bin_duration_s
+        values.append(
+            [neuron_index, body_id, min(1.0, rate_hz / 50.0), spike_count]
+        )
+    frame["values"] = values
+    frame["active_selected_count"] = int(active.size)
+    frame["active_without_visible_soma_count"] = without_visible_soma
+    return frame
+
+
+def _empty_activity_frame(bin_duration_s: float) -> dict[str, Any]:
+    return {
+        "signal": "emitted_simulated_spike_count",
+        "units": "spikes per neuron per simulation-time bin",
+        "bin_duration_s": bin_duration_s,
+        "normalization": {
+            "method": "linear_rate_clamped_0_1",
+            "reference_rate_hz": 50.0,
+            "meaning": "display brightness only; not voltage or synaptic current",
+        },
+        "values": [],
+        "selected_neuron_count": 0,
+        "active_selected_count": 0,
+        "active_without_visible_soma_count": 0,
+    }
