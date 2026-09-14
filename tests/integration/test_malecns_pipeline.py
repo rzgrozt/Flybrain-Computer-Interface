@@ -83,6 +83,9 @@ def test_normalize_dataset_filters_indexes_and_builds_csr(tmp_path: Path) -> Non
     assert np.load(output / "csr_indptr.npy").tolist() == [0, 1, 2, 5]
     assert np.load(output / "csr_indices.npy").tolist() == [2, 0, 0, 1, 2]
     assert np.load(output / "csr_synapse_counts.npy").tolist() == [4, 5, 2, 3, 1]
+    assert np.load(output / "outgoing_indptr.npy").tolist() == [0, 2, 3, 5]
+    assert np.load(output / "outgoing_target_indices.npy").tolist() == [1, 2, 2, 0, 2]
+    assert np.load(output / "outgoing_synapse_counts.npy").tolist() == [5, 2, 3, 4, 1]
 
     output_names = (
         "neurons.parquet",
@@ -90,9 +93,12 @@ def test_normalize_dataset_filters_indexes_and_builds_csr(tmp_path: Path) -> Non
         "csr_indptr.npy",
         "csr_indices.npy",
         "csr_synapse_counts.npy",
+        "outgoing_indptr.npy",
+        "outgoing_target_indices.npy",
+        "outgoing_synapse_counts.npy",
     )
     lock = {
-        "schema_version": 1,
+        "schema_version": 2,
         "dataset": "test:v1",
         "neuron_count": report.neuron_count,
         "edge_count": report.edge_count,

@@ -40,6 +40,13 @@ def main() -> None:
     started = time.perf_counter()
     postsynaptic_input = graph.propagate(activity)
     propagation_seconds = time.perf_counter() - started
+    event_input = np.zeros(graph.neuron_count, dtype=np.float64)
+    started = time.perf_counter()
+    visited_edges = graph.accumulate_spikes(active, event_input)
+    event_seconds = time.perf_counter() - started
+    equivalent = bool(np.array_equal(event_input, postsynaptic_input))
+    if not equivalent:
+        raise RuntimeError("event-driven and full-matrix propagation disagree")
 
     print(
         json.dumps(
@@ -55,6 +62,10 @@ def main() -> None:
                 "transmitter_counts": graph.transmitter_counts(),
                 "active_neurons": active_count,
                 "propagation_seconds": propagation_seconds,
+                "event_propagation_seconds": event_seconds,
+                "event_speedup": propagation_seconds / event_seconds,
+                "event_visited_edges": visited_edges,
+                "event_matches_full_propagation": equivalent,
                 "nonzero_target_inputs": int(np.count_nonzero(postsynaptic_input)),
                 "absolute_contact_input": float(np.abs(postsynaptic_input).sum()),
             },

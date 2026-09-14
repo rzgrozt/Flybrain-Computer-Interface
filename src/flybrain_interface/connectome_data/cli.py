@@ -10,12 +10,13 @@ from pathlib import Path
 from flybrain_interface.connectome_data.acquire import acquire_dataset
 from flybrain_interface.connectome_data.manifest import load_manifest, verify_dataset
 from flybrain_interface.connectome_data.normalize import normalize_dataset
+from flybrain_interface.connectome_data.outgoing import build_outgoing_index
 from flybrain_interface.connectome_data.validate import validate_processed_dataset
 
 DEFAULT_MANIFEST = Path("data/manifests/malecns-v1.0.json")
 DEFAULT_RAW = Path("data/raw/malecns-v1.0")
 DEFAULT_OUTPUT = Path("data/processed/malecns-v1.0")
-DEFAULT_LOCK = Path("data/manifests/malecns-v1.0-normalized-v1.json")
+DEFAULT_LOCK = Path("data/manifests/malecns-v1.0-normalized-v2.json")
 
 
 def main() -> None:
@@ -31,6 +32,12 @@ def main() -> None:
     build.add_argument("--output-directory", type=Path, default=DEFAULT_OUTPUT)
     build.add_argument("--memory-limit", default="4GB")
     build.add_argument("--threads", type=int, default=4)
+    outgoing = subparsers.add_parser(
+        "index-outgoing", help="add source-major arrays to a normalized dataset"
+    )
+    outgoing.add_argument("--output-directory", type=Path, default=DEFAULT_OUTPUT)
+    outgoing.add_argument("--memory-limit", default="4GB")
+    outgoing.add_argument("--threads", type=int, default=4)
     validate = subparsers.add_parser("validate", help="validate normalized outputs")
     validate.add_argument("--output-directory", type=Path, default=DEFAULT_OUTPUT)
     validate.add_argument("--lock", type=Path, default=DEFAULT_LOCK)
@@ -44,14 +51,21 @@ def main() -> None:
         artifacts = verify_dataset(manifest, arguments.raw_directory)
         _print_json([asdict(artifact) for artifact in artifacts])
     elif arguments.command == "build":
-        report = normalize_dataset(
+        normalization_report = normalize_dataset(
             manifest,
             arguments.raw_directory,
             arguments.output_directory,
             memory_limit=arguments.memory_limit,
             threads=arguments.threads,
         )
-        _print_json(asdict(report))
+        _print_json(asdict(normalization_report))
+    elif arguments.command == "index-outgoing":
+        outgoing_report = build_outgoing_index(
+            arguments.output_directory,
+            memory_limit=arguments.memory_limit,
+            threads=arguments.threads,
+        )
+        _print_json(asdict(outgoing_report))
     else:
         validation = validate_processed_dataset(
             arguments.lock, arguments.output_directory

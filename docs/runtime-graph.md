@@ -1,7 +1,7 @@
 # Runtime graph
 
-The runtime loader opens the normalized target-by-source CSR arrays with NumPy
-memory mapping. The two 25,582,938-element edge arrays therefore remain read-only
+The runtime loader opens both normalized sparse orientations with NumPy memory
+mapping. The four 25,582,938-element edge arrays therefore remain read-only
 file-backed storage. Only the compact neuron annotations, one sign byte per neuron,
 and per-step activity/output vectors need ordinary process memory.
 
@@ -13,12 +13,19 @@ from flybrain_interface.connectome_data.runtime import MemoryMappedConnectome
 graph = MemoryMappedConnectome.load(Path("data/processed/malecns-v1.0"))
 sensory = graph.catalog.select(superclass="sensory")
 incoming = graph.incoming(target_index=0)
+outgoing = graph.outgoing(source_index=0)
 ```
 
 `graph.propagate(activity)` evaluates the unsigned contact matrix as
 `contacts @ (activity * presynaptic_sign)`. This applies transmitter sign by the
 presynaptic neuron and avoids materializing a second, signed 25.6-million-edge
 matrix.
+
+`graph.accumulate_spikes(spiking_indices, destination)` follows only source-major
+outgoing edges touched by the current spike event. The caller owns and reuses the
+dense `float64` destination vector, avoiding one full-sized allocation per neural
+step. The method returns the number of non-modulatory edges visited, which is useful
+for performance telemetry.
 
 ## Default sign policy
 
@@ -51,12 +58,11 @@ receptor context.
 
 ## Scope and next constraint
 
-The stored CSR layout is target-major. It is efficient for full sparse
-matrix-vector propagation and inspection of incoming connections. An event-driven
-runtime that visits only the outgoing edges of spiking neurons will require an
-additional source-major index. That representation should be generated as another
-verified derived artifact rather than synthesized on every process start.
+The source-major representation makes propagation cost depend on the number and
+out-degree of neurons that actually spike. The current kernel deliberately uses a
+small Python loop over spiking neurons and vectorized NumPy updates over each
+neuron's targets. Profiling will determine whether a compiled CPU kernel is needed.
 
-This loader does not perform neural dynamics, plasticity, or motor control. It only
-provides anatomical connectivity, annotations, explicit sign assumptions, and a
-sparse propagation primitive.
+This loader still does not perform neural dynamics, plasticity, or motor control.
+The next simulation step is a deterministic sparse LIF state engine with delayed
+event delivery, validated against the Brian2 reference on induced subgraphs.

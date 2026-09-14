@@ -45,6 +45,23 @@ The same graph is emitted as memory-mappable target-major CSR arrays:
 - `csr_indices.npy`: `int32` source-neuron indices;
 - `csr_synapse_counts.npy`: `int32` unsigned-by-convention contact counts.
 
+Normalization schema v2 also emits the same graph in source-major order for
+event-driven propagation:
+
+- `outgoing_indptr.npy`: `int64`, one entry per source neuron plus one;
+- `outgoing_target_indices.npy`: `int32` target-neuron indices;
+- `outgoing_synapse_counts.npy`: `int32` unsigned contact counts.
+
+Existing schema-v1 local data can be upgraded without repeating the raw 1.1 GB
+normalization join:
+
+```bash
+uv run flybrain-data index-outgoing --memory-limit 4GB --threads 4
+```
+
+The command refuses to overwrite any existing outgoing array and preserves partial
+work for inspection if construction fails.
+
 The current locked build contains:
 
 | Quantity | Value |
@@ -55,7 +72,7 @@ The current locked build contains:
 | Self-edges | 101 |
 | Raw connection rows excluded by endpoint selection | 126,273,746 |
 
-Normalized files total approximately 280 MB and remain under ignored
+Normalized files total approximately 477 MiB and remain under ignored
 `data/processed/`.
 
 ## Reproducibility and safety
@@ -67,5 +84,6 @@ configurable memory cap. PyArrow streams the sorted Parquet edges into NumPy `.n
 arrays without loading the full graph into memory.
 
 The independent validation command verifies locked file hashes and sizes, Parquet
-row counts, CSR shape and monotonicity, source-index bounds, positive weights,
-synaptic-contact total, and self-edge count.
+row counts, both sparse orientations' shape and monotonicity, endpoint bounds,
+positive weights, synaptic-contact totals, self-edge counts, and agreement of
+incoming/outgoing degree sequences.

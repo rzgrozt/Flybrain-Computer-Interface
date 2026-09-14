@@ -21,8 +21,9 @@ from flybrain_interface.connectome_data.manifest import (
     file_sha256,
     verify_dataset,
 )
+from flybrain_interface.connectome_data.outgoing import write_outgoing_arrays
 
-NORMALIZATION_SCHEMA_VERSION = 1
+NORMALIZATION_SCHEMA_VERSION = 2
 _MEMORY_LIMIT_PATTERN = re.compile(r"^[1-9][0-9]*(?:MB|GB)$")
 
 
@@ -177,6 +178,19 @@ def normalize_dataset(
     edge_count, contact_count, self_edges = _write_csr_arrays(
         partial / "edges.parquet", partial, neuron_count
     )
+    outgoing_report = write_outgoing_arrays(
+        partial / "edges.parquet",
+        partial,
+        neuron_count,
+        memory_limit=memory_limit,
+        threads=threads,
+    )
+    if (
+        outgoing_report.edge_count != edge_count
+        or outgoing_report.synaptic_contact_count != contact_count
+        or outgoing_report.self_edge_count != self_edges
+    ):
+        raise ValueError("incoming and outgoing graph representations disagree")
     neuron_summary = parquet.read_table(
         partial / "neurons.parquet", columns=["superclass", "consensus_nt"]
     )
@@ -190,6 +204,9 @@ def normalize_dataset(
         "csr_indptr.npy",
         "csr_indices.npy",
         "csr_synapse_counts.npy",
+        "outgoing_indptr.npy",
+        "outgoing_target_indices.npy",
+        "outgoing_synapse_counts.npy",
     )
     output_hashes = {name: file_sha256(partial / name) for name in output_names}
     report = NormalizationReport(

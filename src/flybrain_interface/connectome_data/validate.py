@@ -12,6 +12,19 @@ import pyarrow.parquet as parquet
 
 from flybrain_interface.connectome_data.manifest import file_sha256
 
+_CORE_OUTPUTS = {
+    "neurons.parquet",
+    "edges.parquet",
+    "csr_indptr.npy",
+    "csr_indices.npy",
+    "csr_synapse_counts.npy",
+}
+_OUTGOING_OUTPUTS = {
+    "outgoing_indptr.npy",
+    "outgoing_target_indices.npy",
+    "outgoing_synapse_counts.npy",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class ProcessedValidation:
@@ -27,10 +40,16 @@ def validate_processed_dataset(
     lock_path: Path, output_directory: Path
 ) -> ProcessedValidation:
     lock: dict[str, Any] = json.loads(lock_path.read_text(encoding="utf-8"))
-    if lock.get("schema_version") != 1:
+    schema_version = lock.get("schema_version")
+    if schema_version not in (1, 2):
         raise ValueError("unsupported normalized-data lock schema")
 
     outputs: dict[str, dict[str, Any]] = lock["outputs"]
+    expected_outputs = _CORE_OUTPUTS | (
+        _OUTGOING_OUTPUTS if schema_version == 2 else set()
+    )
+    if set(outputs) != expected_outputs:
+        raise ValueError("normalized-data lock outputs do not match its schema version")
     for filename, expected in outputs.items():
         if PurePath(filename).name != filename:
             raise ValueError("locked output filename must not contain a path")
@@ -70,6 +89,17 @@ def validate_processed_dataset(
     if observed_self_edges != self_edges:
         raise ValueError("CSR self-edge count does not match lock")
 
+    if schema_version == 2:
+        _validate_outgoing_arrays(
+            output_directory,
+            neuron_count=neuron_count,
+            edge_count=edge_count,
+            contacts=contacts,
+            self_edges=self_edges,
+            incoming_indptr=indptr,
+            incoming_sources=indices,
+        )
+
     neurons = parquet.ParquetFile(output_directory / "neurons.parquet")
     edges = parquet.ParquetFile(output_directory / "edges.parquet")
     if neurons.metadata.num_rows != neuron_count:
@@ -85,3 +115,45 @@ def validate_processed_dataset(
         self_edge_count=self_edges,
         verified_files=tuple(sorted(outputs)),
     )
+
+
+def _validate_outgoing_arrays(
+    output_directory: Path,
+    *,
+    neuron_count: int,
+    edge_count: int,
+    contacts: int,
+    self_edges: int,
+    incoming_indptr: np.ndarray[Any, Any],
+    incoming_sources: np.ndarray[Any, Any],
+) -> None:
+    indptr = np.load(output_directory / "outgoing_indptr.npy", mmap_mode="r")
+    targets = np.load(output_directory / "outgoing_target_indices.npy", mmap_mode="r")
+    weights = np.load(output_directory / "outgoing_synapse_counts.npy", mmap_mode="r")
+    if indptr.shape != (neuron_count + 1,):
+        raise ValueError("outgoing indptr shape does not match neuron count")
+    if targets.shape != (edge_count,) or weights.shape != (edge_count,):
+        raise ValueError("outgoing edge arrays do not match edge count")
+    if int(indptr[0]) != 0 or int(indptr[-1]) != edge_count:
+        raise ValueError("outgoing indptr bounds are invalid")
+    if np.any(indptr[1:] < indptr[:-1]):
+        raise ValueError("outgoing indptr must be monotonic")
+    if np.any(targets < 0) or np.any(targets >= neuron_count):
+        raise ValueError("outgoing target index outside neuron range")
+    if np.any(weights <= 0):
+        raise ValueError("outgoing synapse counts must be positive")
+    if int(np.sum(weights, dtype=np.int64)) != contacts:
+        raise ValueError("outgoing synaptic contact total does not match lock")
+    observed_self_edges = sum(
+        int(np.count_nonzero(targets[indptr[source] : indptr[source + 1]] == source))
+        for source in range(neuron_count)
+    )
+    if observed_self_edges != self_edges:
+        raise ValueError("outgoing self-edge count does not match lock")
+
+    incoming_source_degrees = np.bincount(incoming_sources, minlength=neuron_count)
+    if not np.array_equal(incoming_source_degrees, np.diff(indptr)):
+        raise ValueError("incoming and outgoing source degrees disagree")
+    outgoing_target_degrees = np.bincount(targets, minlength=neuron_count)
+    if not np.array_equal(outgoing_target_degrees, np.diff(incoming_indptr)):
+        raise ValueError("incoming and outgoing target degrees disagree")

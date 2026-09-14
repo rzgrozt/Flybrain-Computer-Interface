@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "dataset": "male-cns:v1.0",
   "source_manifest": "malecns-v1.0.json",
   "source_manifest_sha256": "ccb36d5337ed221e2d952047fb0adddf6620a699e3abeacd3775c86c0b48596c",
@@ -28,6 +28,18 @@
     "neurons.parquet": {
       "size_bytes": 2656625,
       "sha256": "78c8a5e91bd340de1bac40cad678e3d720277f27d941070666b6dfd59c888376"
+    },
+    "outgoing_indptr.npy": {
+      "size_bytes": 1333736,
+      "sha256": "fe43420f11e6242a11f8199ae7f097cab4b8a6db181d36f2a46b9e46670acbb4"
+    },
+    "outgoing_synapse_counts.npy": {
+      "size_bytes": 102331880,
+      "sha256": "ab7d7b48f22c9586e9e490e086372c8c49cf288edfbd3cee29cd376ea4ad0202"
+    },
+    "outgoing_target_indices.npy": {
+      "size_bytes": 102331880,
+      "sha256": "ce20f7433f78442c717ad2a7b5394cf4a3b109d990b4be0788040b7b0f4ed150"
     }
   }
 }

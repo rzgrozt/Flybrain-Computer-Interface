@@ -80,6 +80,14 @@ class IncomingConnections:
 
 
 @dataclass(frozen=True, slots=True)
+class OutgoingConnections:
+    """Zero-copy views of the connections leaving one source neuron."""
+
+    target_indices: IndexArray
+    synapse_counts: CountArray
+
+
+@dataclass(frozen=True, slots=True)
 class NeuronCatalog:
     """Small in-memory annotation table aligned with graph neuron indices."""
 
@@ -112,12 +120,15 @@ class NeuronCatalog:
 
 @dataclass(frozen=True, slots=True)
 class MemoryMappedConnectome:
-    """Full target-by-source graph without copying its edge arrays into RAM."""
+    """Full bidirectional sparse graph without copying edge arrays into RAM."""
 
     directory: Path
     indptr: npt.NDArray[np.int64]
     source_indices: IndexArray
     synapse_counts: CountArray
+    outgoing_indptr: npt.NDArray[np.int64]
+    target_indices: IndexArray
+    outgoing_synapse_counts: CountArray
     presynaptic_signs: SignArray
     transmitters: tuple[str | None, ...]
     catalog: NeuronCatalog
@@ -134,6 +145,11 @@ class MemoryMappedConnectome:
         indptr = np.load(directory / "csr_indptr.npy", mmap_mode="r")
         indices = np.load(directory / "csr_indices.npy", mmap_mode="r")
         counts = np.load(directory / "csr_synapse_counts.npy", mmap_mode="r")
+        outgoing_indptr = np.load(directory / "outgoing_indptr.npy", mmap_mode="r")
+        targets = np.load(directory / "outgoing_target_indices.npy", mmap_mode="r")
+        outgoing_counts = np.load(
+            directory / "outgoing_synapse_counts.npy", mmap_mode="r"
+        )
         neurons = parquet.read_table(directory / "neurons.parquet")
         neuron_count = neurons.num_rows
         edge_count = int(indices.size)
@@ -146,6 +162,16 @@ class MemoryMappedConnectome:
             raise ValueError("invalid CSR synapse-count dtype or shape")
         if int(indptr[0]) != 0 or int(indptr[-1]) != edge_count:
             raise ValueError("invalid CSR bounds")
+        if outgoing_indptr.dtype != np.int64 or outgoing_indptr.shape != (
+            neuron_count + 1,
+        ):
+            raise ValueError("invalid outgoing indptr dtype or shape")
+        if targets.dtype != np.int32 or targets.shape != (edge_count,):
+            raise ValueError("invalid outgoing target-index dtype or shape")
+        if outgoing_counts.dtype != np.int32 or outgoing_counts.shape != (edge_count,):
+            raise ValueError("invalid outgoing synapse-count dtype or shape")
+        if int(outgoing_indptr[0]) != 0 or int(outgoing_indptr[-1]) != edge_count:
+            raise ValueError("invalid outgoing index bounds")
 
         transmitters = _effective_transmitters(neurons)
         signs = np.fromiter(
@@ -159,6 +185,9 @@ class MemoryMappedConnectome:
             indptr=indptr,
             source_indices=indices,
             synapse_counts=counts,
+            outgoing_indptr=outgoing_indptr,
+            target_indices=targets,
+            outgoing_synapse_counts=outgoing_counts,
             presynaptic_signs=signs,
             transmitters=transmitters,
             catalog=NeuronCatalog(neurons),
@@ -175,7 +204,12 @@ class MemoryMappedConnectome:
 
     @property
     def mapped_edge_bytes(self) -> int:
-        return int(self.source_indices.nbytes + self.synapse_counts.nbytes)
+        return int(
+            self.source_indices.nbytes
+            + self.synapse_counts.nbytes
+            + self.target_indices.nbytes
+            + self.outgoing_synapse_counts.nbytes
+        )
 
     def incoming(self, target_index: int) -> IncomingConnections:
         if target_index < 0 or target_index >= self.neuron_count:
@@ -185,6 +219,16 @@ class MemoryMappedConnectome:
         return IncomingConnections(
             source_indices=self.source_indices[start:stop],
             synapse_counts=self.synapse_counts[start:stop],
+        )
+
+    def outgoing(self, source_index: int) -> OutgoingConnections:
+        if source_index < 0 or source_index >= self.neuron_count:
+            raise IndexError("source neuron index outside graph")
+        start = int(self.outgoing_indptr[source_index])
+        stop = int(self.outgoing_indptr[source_index + 1])
+        return OutgoingConnections(
+            target_indices=self.target_indices[start:stop],
+            synapse_counts=self.outgoing_synapse_counts[start:stop],
         )
 
     def unsigned_csr(self) -> csr_matrix:
@@ -211,6 +255,58 @@ class MemoryMappedConnectome:
             raise ValueError("presynaptic activity must be finite")
         signed_activity = activity * self.presynaptic_signs
         return np.asarray(self.unsigned_csr() @ signed_activity, dtype=np.float64)
+
+    def accumulate_spikes(
+        self,
+        spiking_indices: npt.ArrayLike,
+        destination: FloatArray,
+        *,
+        amplitudes: npt.ArrayLike | None = None,
+    ) -> int:
+        """Accumulate signed outgoing contacts for one sparse spike event.
+
+        The caller owns and may reuse ``destination``. The return value is the
+        number of non-modulatory outgoing edges visited.
+        """
+
+        raw_spikes = np.asarray(spiking_indices)
+        if not np.issubdtype(raw_spikes.dtype, np.integer):
+            raise TypeError("spiking_indices must contain integers")
+        spikes = raw_spikes.astype(np.int64, copy=False)
+        if spikes.ndim != 1:
+            raise ValueError("spiking_indices must be one-dimensional")
+        if spikes.size and (spikes.min() < 0 or spikes.max() >= self.neuron_count):
+            raise IndexError("spiking neuron index outside graph")
+        if np.unique(spikes).size != spikes.size:
+            raise ValueError("spiking_indices must be unique within an event")
+        if destination.shape != (self.neuron_count,) or destination.dtype != np.float64:
+            raise ValueError(
+                "destination must be a float64 vector with one value per neuron"
+            )
+        if not destination.flags.writeable:
+            raise ValueError("destination must be writeable")
+
+        if amplitudes is None:
+            event_amplitudes = np.ones(spikes.size, dtype=np.float64)
+        else:
+            event_amplitudes = np.asarray(amplitudes, dtype=np.float64)
+            if event_amplitudes.shape != spikes.shape:
+                raise ValueError("amplitudes must match spiking_indices")
+            if not np.isfinite(event_amplitudes).all():
+                raise ValueError("amplitudes must be finite")
+
+        visited_edges = 0
+        for source, amplitude in zip(spikes, event_amplitudes, strict=True):
+            sign = int(self.presynaptic_signs[source])
+            if sign == 0 or amplitude == 0.0:
+                continue
+            start = int(self.outgoing_indptr[source])
+            stop = int(self.outgoing_indptr[source + 1])
+            targets = self.target_indices[start:stop]
+            counts = self.outgoing_synapse_counts[start:stop]
+            destination[targets] += counts * (sign * amplitude)
+            visited_edges += stop - start
+        return visited_edges
 
     def transmitter_counts(self) -> dict[str, int]:
         counts: dict[str, int] = {}
