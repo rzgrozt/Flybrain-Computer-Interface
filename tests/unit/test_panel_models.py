@@ -23,6 +23,14 @@ def test_experiment_rejects_unbounded_or_ambiguous_targets() -> None:
         ExperimentConfig(stimulus=StimulusConfig(neuron_indices=[2, 2]))
     with pytest.raises(ValidationError):
         ExperimentConfig(visualization_indices=list(range(4097)))
+    with pytest.raises(ValidationError):
+        StimulusConfig(neuron_indices=list(range(4097)))
+
+
+def test_stimulus_accepts_full_reconstructed_r1_r6_population() -> None:
+    stimulus = StimulusConfig(neuron_indices=list(range(3377)))
+
+    assert len(stimulus.neuron_indices) == 3377
 
 
 def test_stimulus_window_must_fit_experiment() -> None:

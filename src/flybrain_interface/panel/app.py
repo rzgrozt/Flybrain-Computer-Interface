@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from flybrain_interface.experiments.sensory_descending import panel_presets
+from flybrain_interface.experiments.visual_pathway import visual_panel_preset
 from flybrain_interface.panel.anatomy import ATLAS_DIRECTORY, AtlasJoin
 from flybrain_interface.panel.controller import PanelController
 from flybrain_interface.panel.models import (
@@ -112,6 +113,10 @@ def create_app(
     @app.get("/api/presets/sensory-descending")
     async def sensory_descending_presets() -> dict[str, Any]:
         return await asyncio.to_thread(panel_presets, controller.data_directory)
+
+    @app.get("/api/presets/visual-pathway")
+    async def visual_pathway_preset() -> dict[str, Any]:
+        return await asyncio.to_thread(visual_panel_preset, controller.data_directory)
 
     @app.get("/api/anatomy")
     async def anatomy_summary() -> dict[str, Any]:

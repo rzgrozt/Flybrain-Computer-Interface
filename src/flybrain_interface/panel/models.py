@@ -11,7 +11,7 @@ class StimulusConfig(BaseModel):
     """Declared artificial voltage pulses delivered on the neural time grid."""
 
     model_config = ConfigDict(extra="forbid")
-    neuron_indices: list[int] = Field(default_factory=lambda: [0], max_length=256)
+    neuron_indices: list[int] = Field(default_factory=lambda: [0], max_length=4096)
     start_s: float = Field(default=0.0, ge=0.0, le=60.0)
     stop_s: float = Field(default=0.05, gt=0.0, le=60.0)
     interval_ms: float = Field(default=5.0, ge=0.1, le=10_000.0)
