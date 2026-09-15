@@ -144,6 +144,10 @@ The panel also exposes annotation-grounded MaleCNS presets for R1-R6, ORN_DA1,
 JO-A1, all descending neurons, DNg13, and DNp01. The controlled 26-condition
 characterization, exact memberships, results, and scientific limits are documented
 in [`docs/sensory-descending-characterization-2026-09-14.md`](docs/sensory-descending-characterization-2026-09-14.md).
+The visual-pathway validation adds an all-R1-R6 uniform-field preset and a canonical
+offline 60 Hz frame-clock experiment with subthreshold L1/L2/L3 measurements. See
+[`docs/visual-pathway-validation-2026-09-15.md`](docs/visual-pathway-validation-2026-09-15.md)
+for the reproduced null diagnosis, encoder assumptions, results, and mapping limits.
 The integrated Brain View renders the pinned MaleCNS measured-soma atlas and maps
 bounded live simulated spike-count windows by exact body ID. See
 [`docs/brain-view.md`](docs/brain-view.md) for truthful coverage, signal semantics,
