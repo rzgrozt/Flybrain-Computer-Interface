@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "name": "visual-pathway-validation-v1",
+  "dataset": "male-cns:v1.0",
+  "visual_input_query": {
+    "superclass": "ol_sensory",
+    "class": "visual",
+    "type": "R1-R6"
+  },
+  "reference_sample_limit": 32,
+  "direct_target_types": ["L1", "L2", "L3"],
+  "descending_query": {"superclass": "descending_neuron"},
+  "timing": {
+    "baseline_s": 0.05,
+    "total_s": 0.25,
+    "frame_rate_hz": 60.0,
+    "frame_count": 6
+  },
+  "transduction": {
+    "method": "uniform mean luminance to deterministic pulse density",
+    "max_pulses_per_frame": 4,
+    "pulse_amplitude_mv": 8.0,
+    "luminance_range": [0.0, 1.0],
+    "spatial_mapping": "none; every reconstructed R1-R6 neuron receives the same field"
+  },
+  "retinotopic_mapping": {
+    "moving_bar_enabled": false,
+    "official_column_resource": "https://github.com/flyconnectome/2025malecns/blob/main/supplemental_data/optic-column-type-assignments-v1.0.xlsx",
+    "resource_scope": "column labels for L1, R7 and R8; no direct individual R1-R6 receptive-field mapping",
+    "soma_coordinates_used_as_retinal_coordinates": false
+  },
+  "conditions": {
+    "no_input": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    "static_half": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+    "dark_to_bright": [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
+  },
+  "reference_condition": {
+    "pulse_interval_ms": 5.0,
+    "pulse_amplitude_mv": 8.0,
+    "duration_s": 0.02
+  },
+  "subthreshold_response_threshold_mv": 0.01,
+  "repeats": 2,
+  "seed": 0,
+  "backend": "numba",
+  "subnormal_drive_policy": "preserve",
+  "max_recorded_spike_events_per_run": 200000,
+  "max_total_network_spikes_per_run": 200000,
+  "max_visited_edges_per_run": 10000000,
+  "max_process_rss_bytes": 1073741824,
+  "wall_time_budget_s": 90.0
+}
