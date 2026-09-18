@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "spatial-topographic-readout-v1",
+  "dataset": "male-cns:v1.0",
+  "base_config": "configs/spatial-graded-lamina-v1.json",
+  "axes": ["horizontal", "vertical"],
+  "train_positions": [0.15, 0.325, 0.5, 0.675, 0.85],
+  "test_positions": [0.2375, 0.4125, 0.5875, 0.7625],
+  "feature": {
+    "downstream_target_count": 256,
+    "response_epsilon": 1e-12,
+    "profile_bin_count": 4
+  },
+  "ridge": {
+    "alpha": 1.0,
+    "standardization_epsilon": 1e-12
+  },
+  "gates": {
+    "maximum_voltage_centroid_test_mae": 0.10,
+    "minimum_voltage_centroid_test_correlation": 0.80,
+    "require_voltage_centroid_predictions_monotonic": true
+  }
+}

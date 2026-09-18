@@ -9,6 +9,7 @@ from flybrain_interface.sensory.drive import (
     ProjectedDriveChannel,
 )
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
+from flybrain_interface.simulation.config import ShiuLIFConfig
 from flybrain_interface.simulation.runtime import RuntimeBackend, SparseLIFSimulator
 from flybrain_interface.simulation.trace import ChunkRecording
 
@@ -193,6 +194,26 @@ def test_default_chunk_still_reports_configured_population_rates() -> None:
 
     assert result.neuron_spike_counts is None
     assert result.population_rates_hz["motor"] == pytest.approx(1 / 0.006)
+    assert "motor" in result.population_voltage_delta_mv
+    assert "motor" in result.population_synaptic_drive_mv
+    assert np.isfinite(result.population_voltage_delta_mv["motor"])
+    assert np.isfinite(result.population_synaptic_drive_mv["motor"])
+
+
+@pytest.mark.parametrize("backend", ["numpy", "numba"])
+def test_tonic_bias_is_stable_subthreshold_background(
+    backend: RuntimeBackend,
+) -> None:
+    simulator = SparseLIFSimulator(
+        _delayed_graph(),
+        populations={"motor": (0,)},
+        config=ShiuLIFConfig(tonic_bias_mv=1.0),
+        backend=backend,
+    )
+    result = simulator.advance_chunk(duration_s=0.02)
+
+    assert result.total_spikes == 0
+    assert 0.6 < result.population_voltage_delta_mv["motor"] < 0.7
 
 
 def _projected_drive(

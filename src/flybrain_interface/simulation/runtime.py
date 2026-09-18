@@ -135,6 +135,7 @@ class SparseLIFSimulator:
             self._refractory_drive_buffer,
             self.config.resting_mv,
             self.config.threshold_mv,
+            self.config.tonic_bias_mv,
             self._membrane_decay,
             self._synapse_decay,
             self._drive_coupling,
@@ -184,6 +185,8 @@ class SparseLIFSimulator:
             ),
             population_rates_hz=chunk.population_rates_hz,
             spike_times_s=immutable_times,
+            population_voltage_delta_mv=chunk.population_voltage_delta_mv,
+            population_synaptic_drive_mv=chunk.population_synaptic_drive_mv,
         )
         return SimulationTrace(
             readout=readout,
@@ -290,6 +293,23 @@ class SparseLIFSimulator:
             if counts is not None
             else {}
         )
+        population_voltage_delta_mv = {
+            name: float(
+                np.mean(
+                    self.voltage_mv[np.asarray(indices, dtype=np.int64)]
+                    - self.config.resting_mv
+                )
+            )
+            for name, indices in self.populations.items()
+        }
+        population_synaptic_drive_mv = {
+            name: float(
+                np.mean(
+                    self.synaptic_drive_mv[np.asarray(indices, dtype=np.int64)]
+                )
+            )
+            for name, indices in self.populations.items()
+        }
         recorded_count = len(event_neurons)
         return ChunkResult(
             start_step=start_step,
@@ -305,6 +325,8 @@ class SparseLIFSimulator:
             sample_times_s=sample_times,
             voltage_mv=voltage_trace,
             synaptic_drive_mv=drive_trace,
+            population_voltage_delta_mv=population_voltage_delta_mv,
+            population_synaptic_drive_mv=population_synaptic_drive_mv,
         )
 
     def _advance(
@@ -402,9 +424,10 @@ class SparseLIFSimulator:
                 np.abs(self.synaptic_drive_mv) < self._minimum_preserved_drive_mv
             )
             self.synaptic_drive_mv[small_drive] = 0.0
-        self.voltage_mv -= cfg.resting_mv
+        equilibrium_mv = cfg.resting_mv + cfg.tonic_bias_mv
+        self.voltage_mv -= equilibrium_mv
         self.voltage_mv *= self._membrane_decay
-        self.voltage_mv += cfg.resting_mv
+        self.voltage_mv += equilibrium_mv
         self.voltage_mv += self.synaptic_drive_mv * self._drive_coupling
         self.synaptic_drive_mv *= self._synapse_decay
         self.voltage_mv[refractory_indices] = refractory_voltage

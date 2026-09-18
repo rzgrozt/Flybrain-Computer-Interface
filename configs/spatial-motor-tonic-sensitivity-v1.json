@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-tonic-sensitivity-v1",
+  "dataset": "male-cns:v1.0",
+  "motor_config": "configs/spatial-motor-candidate-readout-v1.json",
+  "tonic_bias_values_mv": [0.0, 0.25, 0.5, 0.75, 1.0, 1.25],
+  "gates": {
+    "minimum_horizontal_steering_range_mv": 0.001,
+    "minimum_vertical_forward_backward_range_mv": 0.001,
+    "maximum_network_spikes_per_run": 50000,
+    "require_both_axes_same_bias": true
+  }
+}

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import numpy.typing as npt
@@ -43,6 +43,8 @@ class ChunkResult:
     sample_times_s: FloatArray
     voltage_mv: FloatArray
     synaptic_drive_mv: FloatArray
+    population_voltage_delta_mv: dict[str, float] = field(default_factory=dict)
+    population_synaptic_drive_mv: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         step_count = self.end_step - self.start_step
@@ -60,6 +62,16 @@ class ChunkResult:
             or self.synaptic_drive_mv.shape != expected_trace_shape
         ):
             raise ValueError("chunk traces must be time-by-watched-neuron")
+        if any(
+            not np.isfinite(value)
+            for value in self.population_voltage_delta_mv.values()
+        ):
+            raise ValueError("population voltage deltas must be finite")
+        if any(
+            not np.isfinite(value)
+            for value in self.population_synaptic_drive_mv.values()
+        ):
+            raise ValueError("population synaptic drive values must be finite")
 
     @property
     def duration_s(self) -> float:

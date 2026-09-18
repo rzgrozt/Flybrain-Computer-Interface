@@ -76,6 +76,8 @@ class NeuralReadout:
     neuron_spike_counts: tuple[int, ...]
     population_rates_hz: Mapping[str, float]
     spike_times_s: tuple[tuple[float, ...], ...] = ()
+    population_voltage_delta_mv: Mapping[str, float] = field(default_factory=dict)
+    population_synaptic_drive_mv: Mapping[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isfinite(self.duration_s) or self.duration_s <= 0:
@@ -87,6 +89,16 @@ class NeuralReadout:
             for rate in self.population_rates_hz.values()
         ):
             raise ValueError("population rates must be finite and non-negative")
+        if any(
+            not isfinite(value)
+            for value in self.population_voltage_delta_mv.values()
+        ):
+            raise ValueError("population voltage deltas must be finite")
+        if any(
+            not isfinite(value)
+            for value in self.population_synaptic_drive_mv.values()
+        ):
+            raise ValueError("population synaptic drive values must be finite")
 
 
 @dataclass(frozen=True, slots=True)

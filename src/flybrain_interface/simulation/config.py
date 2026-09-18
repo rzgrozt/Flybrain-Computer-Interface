@@ -18,6 +18,7 @@ class ShiuLIFConfig:
     refractory_ms: float = 2.2
     delay_ms: float = 1.8
     synapse_scale_mv: float = 0.275
+    tonic_bias_mv: float = 0.0
     dt_ms: float = 0.1
 
     def __post_init__(self) -> None:
@@ -30,6 +31,7 @@ class ShiuLIFConfig:
             self.refractory_ms,
             self.delay_ms,
             self.synapse_scale_mv,
+            self.tonic_bias_mv,
             self.dt_ms,
         )
         if not all(isfinite(value) for value in values):
@@ -42,6 +44,10 @@ class ShiuLIFConfig:
             raise ValueError("refractory/delay must be non-negative and dt positive")
         if self.synapse_scale_mv <= 0:
             raise ValueError("synapse_scale_mv must be positive")
+        if self.resting_mv + self.tonic_bias_mv >= self.threshold_mv:
+            raise ValueError(
+                "tonic_bias_mv must keep the zero-input equilibrium below threshold"
+            )
         if isclose(self.membrane_tau_ms, self.synapse_tau_ms):
             raise ValueError(
                 "equal membrane and synapse time constants are unsupported"

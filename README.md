@@ -183,6 +183,22 @@ position correlation (0.907 horizontal, 0.863 vertical), while spike-only featur
 were identically zero; however, the readout failed its predeclared MAE gate and the
 horizontal predictions were not monotonic. This negative result is kept unchanged in
 [`docs/spatial-subthreshold-readout-validation-2026-09-18.md`](docs/spatial-subthreshold-readout-validation-2026-09-18.md).
+A follow-up keeps that canonical frontend fixed but replaces the sample-starved
+256-dimensional decoder with an anatomically grounded backprojection onto the 113
+visible optic columns. A one-dimensional voltage activity centroid now generalizes
+to unseen positions with 0.016 horizontal / 0.036 vertical MAE and 0.997 / 0.987
+correlation, with strictly monotonic predictions on both axes. Drive-state results
+closely match voltage while spike-only state remains completely silent. See
+[`docs/spatial-topographic-readout-validation-2026-09-18.md`](docs/spatial-topographic-readout-validation-2026-09-18.md).
+The motor boundary now exposes continuous population voltage/drive state and an
+anatomically grounded DNa02/DNp09/MDN decoder feeding a sandbox-only virtual cursor.
+Canonical spatial vision does not yet reach those descending populations: all watched
+motor candidates remain at zero because their visual paths are 2-3 chemical hops long
+and the first recurrent optic-lobe targets remain subthreshold. A predeclared 0-1.25
+mV tonic-excitability sweep produced at most one network spike per run and still no
+motor-channel state. This negative result is retained rather than bypassing the motor
+path with the diagnostic spatial decoder; see
+[`docs/spatial-motor-readout-validation-2026-09-18.md`](docs/spatial-motor-readout-validation-2026-09-18.md).
 The integrated Brain View renders the pinned MaleCNS measured-soma atlas and maps
 bounded live simulated spike-count windows by exact body ID. See
 [`docs/brain-view.md`](docs/brain-view.md) for truthful coverage, signal semantics,

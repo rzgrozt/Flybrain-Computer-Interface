@@ -58,14 +58,16 @@ class Brian2ReferenceSimulator:
 
         cfg = self.config
         clock = b2.Clock(dt=cfg.dt_ms * b2.ms)
-        equations = """
-            dv/dt = (v_rest - v + g) / tau_membrane : volt (unless refractory)
-            dg/dt = -g / tau_synapse : volt (unless refractory)
-        """
+        equations = (
+            "dv/dt = (v_rest + tonic_bias - v + g) / tau_membrane : "
+            "volt (unless refractory)\n"
+            "dg/dt = -g / tau_synapse : volt (unless refractory)"
+        )
         namespace = {
             "v_rest": cfg.resting_mv * b2.mV,
             "v_reset": cfg.reset_mv * b2.mV,
             "v_threshold": cfg.threshold_mv * b2.mV,
+            "tonic_bias": cfg.tonic_bias_mv * b2.mV,
             "tau_membrane": cfg.membrane_tau_ms * b2.ms,
             "tau_synapse": cfg.synapse_tau_ms * b2.ms,
             "refractory_period": cfg.refractory_ms * b2.ms,
@@ -150,11 +152,30 @@ class Brian2ReferenceSimulator:
             name: self._population_rate(indices, counts, duration_s)
             for name, indices in self.populations.items()
         }
+        final_voltage_mv = np.asarray(neurons.v[:] / b2.mV, dtype=np.float64)
+        final_drive_mv = np.asarray(neurons.g[:] / b2.mV, dtype=np.float64)
+        population_voltage_delta_mv = {
+            name: float(
+                np.mean(
+                    final_voltage_mv[np.asarray(indices, dtype=np.int64)]
+                    - cfg.resting_mv
+                )
+            )
+            for name, indices in self.populations.items()
+        }
+        population_synaptic_drive_mv = {
+            name: float(
+                np.mean(final_drive_mv[np.asarray(indices, dtype=np.int64)])
+            )
+            for name, indices in self.populations.items()
+        }
         readout = NeuralReadout(
             duration_s=duration_s,
             neuron_spike_counts=counts,
             population_rates_hz=rates,
             spike_times_s=spike_times,
+            population_voltage_delta_mv=population_voltage_delta_mv,
+            population_synaptic_drive_mv=population_synaptic_drive_mv,
         )
         return SimulationTrace(
             readout=readout,

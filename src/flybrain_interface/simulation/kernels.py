@@ -20,6 +20,7 @@ def advance_state_numba(
     refractory_drive_buffer: FloatArray,
     resting_mv: float,
     threshold_mv: float,
+    tonic_bias_mv: float,
     membrane_decay: float,
     synapse_decay: float,
     drive_coupling: float,
@@ -34,7 +35,8 @@ def advance_state_numba(
             old_drive = synaptic_drive_mv[neuron]
             voltage_mv[neuron] = (
                 resting_mv
-                + (old_voltage - resting_mv) * membrane_decay
+                + tonic_bias_mv
+                + (old_voltage - resting_mv - tonic_bias_mv) * membrane_decay
                 + old_drive * drive_coupling
             )
             synaptic_drive_mv[neuron] = old_drive * synapse_decay
@@ -59,6 +61,7 @@ def advance_state_numba_zero_subnormal(
     refractory_drive_buffer: FloatArray,
     resting_mv: float,
     threshold_mv: float,
+    tonic_bias_mv: float,
     membrane_decay: float,
     synapse_decay: float,
     drive_coupling: float,
@@ -76,7 +79,8 @@ def advance_state_numba_zero_subnormal(
                 old_drive = 0.0
             voltage_mv[neuron] = (
                 resting_mv
-                + (old_voltage - resting_mv) * membrane_decay
+                + tonic_bias_mv
+                + (old_voltage - resting_mv - tonic_bias_mv) * membrane_decay
                 + old_drive * drive_coupling
             )
             synaptic_drive_mv[neuron] = old_drive * synapse_decay

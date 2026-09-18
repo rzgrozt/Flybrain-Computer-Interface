@@ -13,7 +13,10 @@ from flybrain_interface.contracts import (
     StructuredGoal,
     TelemetryEvent,
 )
-from flybrain_interface.motor.fixed import FixedPopulationMotorDecoder
+from flybrain_interface.motor.fixed import (
+    ContinuousPopulationMotorDecoder,
+    FixedPopulationMotorDecoder,
+)
 from flybrain_interface.reward.distance import (
     DistanceImprovementEvaluator,
     DistanceState,
@@ -78,6 +81,29 @@ def test_fixed_motor_decoder_uses_only_neural_rates() -> None:
 
     assert command.delta_x == 1.0
     assert command.delta_y == 0.0
+    assert command.click is False
+
+
+def test_continuous_motor_decoder_uses_only_descending_voltage_state() -> None:
+    readout = NeuralReadout(
+        duration_s=0.04,
+        neuron_spike_counts=(0,),
+        population_rates_hz={},
+        population_voltage_delta_mv={
+            "steer_left": 0.2,
+            "steer_right": 0.7,
+            "forward": 0.6,
+            "backward": 0.1,
+        },
+    )
+
+    command = ContinuousPopulationMotorDecoder(
+        horizontal_gain=2.0,
+        vertical_gain=2.0,
+    ).decode(readout)
+
+    assert abs(command.delta_x - 1.0) < 1e-12
+    assert command.delta_y == -1.0
     assert command.click is False
 
 

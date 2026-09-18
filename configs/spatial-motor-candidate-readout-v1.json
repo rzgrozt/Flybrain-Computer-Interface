@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-candidate-readout-v1",
+  "dataset": "male-cns:v1.0",
+  "base_config": "configs/spatial-graded-lamina-v1.json",
+  "axes": ["horizontal", "vertical"],
+  "positions": [0.15, 0.325, 0.5, 0.675, 0.85],
+  "motor_populations": [
+    {"key": "steer_left", "type": "DNa02", "soma_side": "L"},
+    {"key": "steer_right", "type": "DNa02", "soma_side": "R"},
+    {"key": "steer_left_secondary", "type": "DNg13", "soma_side": "L"},
+    {"key": "steer_right_secondary", "type": "DNg13", "soma_side": "R"},
+    {"key": "forward", "type": "DNp09", "soma_side": null},
+    {"key": "backward", "type": "MDN", "soma_side": null}
+  ],
+  "gates": {
+    "required_voltage_populations": ["steer_left", "steer_right", "forward", "backward"],
+    "minimum_peak_abs_voltage_delta_mv": 0.001
+  }
+}

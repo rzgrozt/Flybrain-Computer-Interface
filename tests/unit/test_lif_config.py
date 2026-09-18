@@ -17,3 +17,5 @@ def test_shiu_config_rejects_nonfinite_and_off_grid_parameters() -> None:
         ShiuLIFConfig(threshold_mv=float("nan"))
     with pytest.raises(ValueError, match="integer multiple"):
         _ = ShiuLIFConfig(delay_ms=1.85).delay_steps
+    with pytest.raises(ValueError, match="below threshold"):
+        ShiuLIFConfig(tonic_bias_mv=7.0)
