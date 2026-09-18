@@ -302,3 +302,48 @@ def test_projected_drive_must_match_chunk_grid_and_network_bounds() -> None:
             duration_s=0.0001,
             projected_drive=_projected_drive([1.0], target=99),
         )
+
+
+@pytest.mark.parametrize("backend", ["numpy", "numba"])
+def test_clamped_neuron_ignores_external_and_projected_drive(
+    backend: RuntimeBackend,
+) -> None:
+    simulator = SparseLIFSimulator(
+        _delayed_graph(),
+        backend=backend,
+        clamped_indices=(1,),
+    )
+    stimulus = DeterministicSpikeInput(
+        neuron_indices=(1,),
+        times_s=(0.0,),
+        amplitude_mv=100.0,
+    )
+    result = simulator.advance_chunk(
+        stimulus,
+        duration_s=0.0003,
+        recording=ChunkRecording(
+            watched_indices=(1,),
+            include_neuron_counts=True,
+        ),
+        projected_drive=_projected_drive([10.0, 10.0, 10.0], target=1),
+    )
+
+    assert result.neuron_spike_counts is not None
+    assert result.neuron_spike_counts[1] == 0
+    np.testing.assert_allclose(
+        result.voltage_mv[:, 0],
+        simulator.config.resting_mv,
+        rtol=0.0,
+        atol=0.0,
+    )
+    np.testing.assert_allclose(result.synaptic_drive_mv[:, 0], 0.0, atol=0.0)
+    assert simulator.voltage_mv[1] == simulator.config.resting_mv
+    assert simulator.synaptic_drive_mv[1] == 0.0
+    assert simulator.refractory_steps_left[1] == 0
+
+
+def test_clamped_indices_are_validated() -> None:
+    with pytest.raises(ValueError, match="unique"):
+        SparseLIFSimulator(_delayed_graph(), clamped_indices=(1, 1))
+    with pytest.raises(ValueError, match="outside network"):
+        SparseLIFSimulator(_delayed_graph(), clamped_indices=(99,))

@@ -50,6 +50,7 @@ class SparseLIFSimulator:
 
     connectivity: EventConnectivity
     populations: Mapping[str, tuple[int, ...]] = field(default_factory=dict)
+    clamped_indices: tuple[int, ...] = ()
     config: ShiuLIFConfig = field(default_factory=ShiuLIFConfig)
     backend: RuntimeBackend = "numba"
     subnormal_drive_policy: SubnormalDrivePolicy = "preserve"
@@ -64,6 +65,7 @@ class SparseLIFSimulator:
     _spike_buffer: IntArray = field(init=False, repr=False)
     _refractory_index_buffer: IntArray = field(init=False, repr=False)
     _refractory_drive_buffer: FloatArray = field(init=False, repr=False)
+    _clamped_index_array: IntArray = field(init=False, repr=False)
     _step_index: int = field(init=False, default=0, repr=False)
     visited_edges: int = field(init=False, default=0)
     projected_drive_target_updates: int = field(init=False, default=0)
@@ -81,6 +83,9 @@ class SparseLIFSimulator:
                 f"unsupported subnormal drive policy: {self.subnormal_drive_policy}"
             )
         self._validate_populations()
+        self._clamped_index_array = self._validate_clamped_indices(
+            self.clamped_indices
+        )
         cfg = self.config
         self._membrane_decay = exp(-cfg.dt_ms / cfg.membrane_tau_ms)
         self._synapse_decay = exp(-cfg.dt_ms / cfg.synapse_tau_ms)
@@ -320,6 +325,16 @@ class SparseLIFSimulator:
         spikes = self._spike_buffer[:spike_count]
         refractory_indices = self._refractory_index_buffer[:refractory_count]
         refractory_drive = self._refractory_drive_buffer[:refractory_count]
+        if self._clamped_index_array.size:
+            self._apply_clamp()
+            if spikes.size:
+                spikes = spikes[
+                    ~np.isin(
+                        spikes,
+                        self._clamped_index_array,
+                        assume_unique=True,
+                    )
+                ]
 
         propagation_started = perf_counter()
         due_slot = self._step_index % len(self._delay_ring)
@@ -372,6 +387,7 @@ class SparseLIFSimulator:
             self.synaptic_drive_mv[spikes] = 0.0
             self.refractory_steps_left[spikes] = max(0, cfg.refractory_steps - 1)
 
+        self._apply_clamp()
         self._step_index += 1
         return spikes.copy() if not spikes.size else emitted_spikes
 
@@ -428,6 +444,24 @@ class SparseLIFSimulator:
                 raise ValueError("a neuron cannot receive duplicate input at one time")
             schedule[step] = values
         return schedule
+
+
+    def _apply_clamp(self) -> None:
+        if not self._clamped_index_array.size:
+            return
+        self.voltage_mv[self._clamped_index_array] = self.config.resting_mv
+        self.synaptic_drive_mv[self._clamped_index_array] = 0.0
+        self.refractory_steps_left[self._clamped_index_array] = 0
+
+    def _validate_clamped_indices(self, indices: tuple[int, ...]) -> IntArray:
+        values = np.asarray(indices, dtype=np.int64)
+        if values.ndim != 1 or np.unique(values).size != values.size:
+            raise ValueError("clamped_indices must be one-dimensional and unique")
+        if values.size and (
+            values.min() < 0 or values.max() >= self.connectivity.neuron_count
+        ):
+            raise ValueError("clamped neuron index outside network")
+        return values
 
     def _validate_projected_drive(
         self,

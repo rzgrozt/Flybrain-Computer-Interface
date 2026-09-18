@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "resource": "MaleCNS optic-column type assignments",
+  "dataset": "male-cns:v1.0",
+  "filename": "optic-column-type-assignments-v1.0.xlsx",
+  "source_url": "https://raw.githubusercontent.com/flyconnectome/2025malecns/67767d2233657983993ff6c2be48e836a935863c/supplemental_data/optic-column-type-assignments-v1.0.xlsx",
+  "landing_page": "https://github.com/flyconnectome/2025malecns",
+  "license": "see upstream MaleCNS release",
+  "size_bytes": 111565,
+  "sha256": "d4af1cacb751036f7e84bfecc9bec79ca010066ac066559c29b566003ec080d3",
+  "worksheets": ["Right OL", "Left OL"],
+  "verified_on": "2026-09-18"
+}

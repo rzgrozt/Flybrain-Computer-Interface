@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "name": "retinotopic-r1r6-to-l1-v1",
+  "dataset": "male-cns:v1.0",
+  "visual_input_query": {
+    "superclass": "ol_sensory",
+    "class": "visual",
+    "type": "R1-R6"
+  },
+  "source_manifest": "data/manifests/optic-column-type-assignments-v1.0.json",
+  "confidence": {
+    "unique_min_contacts": 5,
+    "dominant_min_best_fraction": 0.80,
+    "dominant_min_margin_fraction": 0.60
+  },
+  "validation": {
+    "expected_r1_r6_per_complete_column": 6,
+    "require_side_consistency": true,
+    "use_soma_coordinates": false,
+    "screen_orientation_resolved": false
+  }
+}

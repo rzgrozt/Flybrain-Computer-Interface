@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "name": "spatial-graded-r1r6-propagation-v1",
+  "dataset": "male-cns:v1.0",
+  "retinotopy_config": "configs/retinotopy-v1.json",
+  "optic_workbook": "data/raw/optic-column-type-assignments-v1.0.xlsx",
+  "eye_map_manifest": "data/manifests/eyemap-zhao2025-v1.json",
+  "measured_directions": "data/processed/eyemap-view-directions-v1.csv",
+  "screen": {
+    "horizontal_fov_deg": 120.0,
+    "vertical_fov_deg": 90.0,
+    "width_px": 256,
+    "height_px": 144,
+    "background_intensity": 0.5,
+    "dark_bar_intensity": 0.0,
+    "bright_bar_intensity": 1.0,
+    "bar_width_fraction": 0.12,
+    "positions": [0.15, 0.325, 0.5, 0.675, 0.85]
+  },
+  "timing": {
+    "frame_rate_hz": 60.0,
+    "neural_dt_ms": 0.1,
+    "baseline_frames": 3,
+    "stimulus_frames": 6,
+    "recovery_frames": 3
+  },
+  "graded_photoreceptor": {
+    "background_luminance": 0.5,
+    "tonic_release_fraction": 0.1,
+    "photoreceptor_tau_ms": 15.0
+  },
+  "projected_drive": {
+    "equivalent_rate_hz": 50.0,
+    "activity_clip": 1.0,
+    "activity_zero_epsilon": 1e-12,
+    "axonal_delay_ms": 1.8
+  },
+  "runtime": {
+    "backend": "numba",
+    "subnormal_drive_policy": "preserve"
+  },
+  "neuron_assignment_statuses": ["unique_high", "dominant"],
+  "gates": {
+    "baseline_max_abs_l1_drive_mv": 1e-12,
+    "minimum_dark_active_l1_positive_fraction": 0.95,
+    "minimum_bright_active_l1_negative_fraction": 0.95,
+    "minimum_horizontal_drive_centroid_correlation": 0.85,
+    "minimum_vertical_drive_centroid_correlation": 0.85,
+    "require_monotonic_drive_centroid": true,
+    "maximum_network_spikes_per_run": 200000
+  }
+}

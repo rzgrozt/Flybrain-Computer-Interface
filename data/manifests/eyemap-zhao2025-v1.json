@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "resource": "Zhao et al. 2025 Drosophila measured eye map",
+  "repository": "https://github.com/reiserlab/eyemap_T4",
+  "commit": "99d2a43123db636cedb55af9ff31a59657e7d17e",
+  "license": "GPL-3.0",
+  "distribution_policy": "primary RData is fetched locally and is not vendored in this repository",
+  "artifacts": [
+    {
+      "filename": "20240701.RData",
+      "repo_path": "data/microCT/20240701.RData",
+      "url": "https://raw.githubusercontent.com/reiserlab/eyemap_T4/99d2a43123db636cedb55af9ff31a59657e7d17e/data/microCT/20240701.RData",
+      "size_bytes": 310361,
+      "sha256": "8408447f8c5798fbc6d751de79ef4983d08c342a500c9a55b2a3b4b38d92deec"
+    },
+    {
+      "filename": "20240701_nb.RData",
+      "repo_path": "data/microCT/20240701_nb.RData",
+      "url": "https://raw.githubusercontent.com/reiserlab/eyemap_T4/99d2a43123db636cedb55af9ff31a59657e7d17e/data/microCT/20240701_nb.RData",
+      "size_bytes": 69102,
+      "sha256": "3d4e34ff61ae7066fce7e18a0e229d7dfbab75ab8b6ab8c64a4017470428c049"
+    },
+    {
+      "filename": "eyemap.RData",
+      "repo_path": "data/eyemap.RData",
+      "url": "https://raw.githubusercontent.com/reiserlab/eyemap_T4/99d2a43123db636cedb55af9ff31a59657e7d17e/data/eyemap.RData",
+      "size_bytes": 182218,
+      "sha256": "c3f63c69afdc3f381cdafabb1d376b8e25ec5a71bce67550ae42fcdd79cf618e"
+    },
+    {
+      "filename": "med_ixy.RData",
+      "repo_path": "data/med_ixy.RData",
+      "url": "https://raw.githubusercontent.com/reiserlab/eyemap_T4/99d2a43123db636cedb55af9ff31a59657e7d17e/data/med_ixy.RData",
+      "size_bytes": 2337,
+      "sha256": "4c2430e8e2b8e488d2d26643e141b1622d46b464ea3f43b016d0cb0b27bd5ff7"
+    }
+  ],
+  "coordinate_convention": {
+    "male_cns_p_from_hex2": "p = hex2 - 19",
+    "male_cns_q_from_hex1": "q = hex1 - 18",
+    "right_raw_to_male_cns": "p = raw_p + 1; q = raw_q",
+    "left_raw_to_male_cns": "p = raw_p; q = raw_q"
+  },
+  "derived_output": {
+    "filename": "eyemap-view-directions-v1.csv",
+    "record_count": 1678,
+    "sha256": "ef1b36c62a57d3b356249e899468da0de3a99604bba2a0df96f09c0e2a399b39"
+  },
+  "verified_on": "2026-09-18"
+}

@@ -18,6 +18,8 @@ from flybrain_interface.experiments.visual_pathway import DirectTargetPopulation
 from flybrain_interface.sensory.vision import (
     GradedEarlyVisionConfig,
     simulate_graded_early_vision,
+    simulate_graded_early_vision_channels,
+    simulate_graded_photoreceptor_channels,
 )
 from flybrain_interface.simulation.config import ShiuLIFConfig
 
@@ -142,3 +144,80 @@ def test_projected_lamina_drive_preserves_delay_and_scaling() -> None:
     assert np.all(channel.amplitudes_mv[:delay_steps] == 0.0)
     assert np.any(channel.amplitudes_mv[delay_steps:] < 0.0)
     assert np.max(np.abs(channel.amplitudes_mv)) == pytest.approx(expected_peak)
+
+
+def test_parallel_photoreceptor_channels_keep_background_at_zero_delta() -> None:
+    intensity = np.full((6, 3), 0.5, dtype=np.float64)
+
+    trace = simulate_graded_photoreceptor_channels(intensity)
+
+    assert trace.histamine_release_delta.shape[1] == 3
+    np.testing.assert_allclose(trace.histamine_release_delta, 0.0, atol=1e-15)
+    assert np.all(trace.histamine_release > 0.0)
+    assert not trace.histamine_release_delta.flags.writeable
+
+
+def test_parallel_photoreceptor_channels_preserve_spatial_sign_and_independence(
+) -> None:
+    intensity = np.asarray(
+        [
+            [0.5, 0.5, 0.5],
+            [0.0, 0.5, 1.0],
+            [0.0, 0.5, 1.0],
+            [0.0, 0.5, 1.0],
+            [0.5, 0.5, 0.5],
+            [0.5, 0.5, 0.5],
+        ],
+        dtype=np.float64,
+    )
+
+    trace = simulate_graded_photoreceptor_channels(intensity)
+
+    assert float(np.min(trace.histamine_release_delta[:, 0])) < 0.0
+    np.testing.assert_allclose(trace.histamine_release_delta[:, 1], 0.0, atol=1e-15)
+    assert float(np.max(trace.histamine_release_delta[:, 2])) > 0.0
+    np.testing.assert_allclose(
+        trace.histamine_release_delta[:, 0],
+        -trace.histamine_release_delta[:, 2],
+        atol=1e-14,
+    )
+
+
+def test_parallel_graded_early_vision_matches_scalar_single_channel() -> None:
+    luminance = np.asarray([0.5, 0.5, 1.0, 1.0, 0.5, 0.5], dtype=np.float64)
+    scalar_frames = np.broadcast_to(luminance[:, None, None], (6, 2, 2)).copy()
+    channel_frames = luminance[:, None]
+
+    scalar = simulate_graded_early_vision(scalar_frames)
+    parallel = simulate_graded_early_vision_channels(channel_frames)
+
+    np.testing.assert_allclose(
+        parallel.photoreceptor.photoreceptor_state[:, 0],
+        scalar.photoreceptor_state,
+        rtol=0.0,
+        atol=1e-14,
+    )
+    np.testing.assert_allclose(
+        parallel.photoreceptor.histamine_release[:, 0],
+        scalar.histamine_release,
+        rtol=0.0,
+        atol=1e-14,
+    )
+    np.testing.assert_allclose(
+        parallel.l1_delta_mv[:, 0],
+        scalar.l1_delta_mv,
+        rtol=0.0,
+        atol=1e-14,
+    )
+    np.testing.assert_allclose(
+        parallel.l2_delta_mv[:, 0],
+        scalar.l2_delta_mv,
+        rtol=0.0,
+        atol=1e-14,
+    )
+    np.testing.assert_allclose(
+        parallel.l3_delta_mv[:, 0],
+        scalar.l3_delta_mv,
+        rtol=0.0,
+        atol=1e-14,
+    )

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "name": "spatial-screen-geometry-v1",
+  "dataset": "male-cns:v1.0",
+  "retinotopy_config": "configs/retinotopy-v1.json",
+  "optic_workbook": "data/raw/optic-column-type-assignments-v1.0.xlsx",
+  "eye_map_manifest": "data/manifests/eyemap-zhao2025-v1.json",
+  "measured_directions": "data/processed/eyemap-view-directions-v1.csv",
+  "screen": {
+    "horizontal_fov_deg": 120.0,
+    "vertical_fov_deg": 90.0,
+    "width_px": 256,
+    "height_px": 144,
+    "background_intensity": 0.5,
+    "bar_intensity": 1.0,
+    "bar_width_fraction": 0.12,
+    "positions": [0.15, 0.325, 0.5, 0.675, 0.85]
+  },
+  "timing": {
+    "frame_rate_hz": 60.0
+  },
+  "neuron_assignment_statuses": ["unique_high", "dominant"],
+  "gates": {
+    "minimum_visible_measured_columns": 500,
+    "minimum_visible_high_confidence_r1r6": 300,
+    "minimum_column_centroid_correlation": 0.99,
+    "minimum_r1r6_centroid_correlation": 0.99,
+    "require_monotonic_centroid": true
+  }
+}

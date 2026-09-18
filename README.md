@@ -154,6 +154,35 @@ whole-network LIF baseline. An optional projected-drive interface aggregates the
 signed L1/L2/L3 outgoing MaleCNS contacts so graded visual changes can enter recurrent
 network activity without fabricating source spikes; see
 [`docs/early-vision-model-2026-09-18.md`](docs/early-vision-model-2026-09-18.md).
+A pinned official optic-column workbook now supports connectivity-grounded R1-R6
+column inference: 3,227 of 3,377 reconstructed R1-R6 cells receive an explicit
+column assignment, with ambiguous cases retained rather than force-resolved. A
+separately pinned Zhao et al. 2025 microCT eye map provides measured viewing
+directions for 1,678 official columns; a 120° x 90° virtual-screen validation sees
+620 measured columns and 374 high-confidence R1-R6, with horizontal and vertical
+moving-bar centroids tracking screen position at >=0.996 correlation. See
+[`docs/retinotopy-validation-2026-09-18.md`](docs/retinotopy-validation-2026-09-18.md)
+and
+[`docs/spatial-vision-validation-2026-09-18.md`](docs/spatial-vision-validation-2026-09-18.md).
+The measured screen geometry is now connected to the full MaleCNS graph through
+per-column graded R1-R6 histamine release and the real signed R1-R6 outgoing
+contacts. Dark-bar L1 drive tracks horizontal and vertical screen position at
+0.9949 and 0.9989 correlation respectively, while the adapted baseline remains
+silent. Some L1 point-neurons still spike under strong dark input in that baseline; see
+[`docs/spatial-neural-vision-validation-2026-09-18.md`](docs/spatial-neural-vision-validation-2026-09-18.md).
+A follow-up hybrid now externally manages the spatial R1-R6/L1/L2/L3 layers as
+graded channels and clamps those 694 nodes in the generic LIF runtime. This removes
+all artificial early-vision spikes while preserving strong downstream subthreshold
+responses. The canonical 50 Hz spike-propagation gate intentionally remains failed:
+the strongest watched downstream voltage response reaches about 6.44 mV against a
+7 mV LIF threshold but produces no spike cascade. See
+[`docs/spatial-graded-lamina-validation-2026-09-18.md`](docs/spatial-graded-lamina-validation-2026-09-18.md).
+A held-out readout test then trained a tiny ridge decoder on five bar positions and
+tested four unseen intermediate positions. Voltage/drive state retained substantial
+position correlation (0.907 horizontal, 0.863 vertical), while spike-only features
+were identically zero; however, the readout failed its predeclared MAE gate and the
+horizontal predictions were not monotonic. This negative result is kept unchanged in
+[`docs/spatial-subthreshold-readout-validation-2026-09-18.md`](docs/spatial-subthreshold-readout-validation-2026-09-18.md).
 The integrated Brain View renders the pinned MaleCNS measured-soma atlas and maps
 bounded live simulated spike-count windows by exact body ID. See
 [`docs/brain-view.md`](docs/brain-view.md) for truthful coverage, signal semantics,
