@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-pathway-localization-v1",
+  "dataset": "male-cns:v1.0",
+  "base_config": "configs/spatial-graded-lamina-v1.json",
+  "motor_config": "configs/spatial-motor-candidate-readout-v1.json",
+  "axes": ["horizontal", "vertical"],
+  "positions": [0.15, 0.5, 0.85],
+  "maximum_path_hops": 3,
+  "response_threshold_mv": 0.001,
+  "top_neurons_per_layer": 12,
+  "top_paths_per_target": 12,
+  "maximum_watch_neurons": 4096,
+  "gates": {
+    "require_all_motor_targets_reachable": true,
+    "require_at_least_one_pathway_hop1_response": true
+  }
+}

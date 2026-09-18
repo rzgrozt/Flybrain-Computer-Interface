@@ -199,6 +199,14 @@ mV tonic-excitability sweep produced at most one network spike per run and still
 motor-channel state. This negative result is retained rather than bypassing the motor
 path with the diagnostic spatial decoder; see
 [`docs/spatial-motor-readout-validation-2026-09-18.md`](docs/spatial-motor-readout-validation-2026-09-18.md).
+A pathway-localization follow-up reconstructs the shortest effective fast-chemical
+routes from the 320 spatial L1/L2/L3 sources to every selected DNa02/DNg13/DNp09/MDN
+cell and records all 2,481 non-lamina neurons lying on those paths. All ten motor
+targets are anatomically reachable within two or three hops, but the canonical signal
+break is now localized exactly: hop-1 relays receive up to 4.534 mV visual voltage
+change yet never spike, so hop 2 receives exactly zero synaptic drive in every tested
+position. See
+[`docs/spatial-motor-pathway-localization-2026-09-18.md`](docs/spatial-motor-pathway-localization-2026-09-18.md).
 The integrated Brain View renders the pinned MaleCNS measured-soma atlas and maps
 bounded live simulated spike-count windows by exact body ID. See
 [`docs/brain-view.md`](docs/brain-view.md) for truthful coverage, signal semantics,
