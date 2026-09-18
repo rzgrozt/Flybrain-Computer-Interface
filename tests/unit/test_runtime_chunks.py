@@ -4,6 +4,10 @@ import numpy as np
 import pytest
 
 from flybrain_interface.connectome_data.induced import InducedConnectome
+from flybrain_interface.sensory.drive import (
+    DeterministicProjectedDriveInput,
+    ProjectedDriveChannel,
+)
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
 from flybrain_interface.simulation.runtime import RuntimeBackend, SparseLIFSimulator
 from flybrain_interface.simulation.trace import ChunkRecording
@@ -189,3 +193,112 @@ def test_default_chunk_still_reports_configured_population_rates() -> None:
 
     assert result.neuron_spike_counts is None
     assert result.population_rates_hz["motor"] == pytest.approx(1 / 0.006)
+
+
+def _projected_drive(
+    amplitudes: list[float],
+    *,
+    target: int = 1,
+    weight: float = 3.0,
+    dt_ms: float = 0.1,
+) -> DeterministicProjectedDriveInput:
+    return DeterministicProjectedDriveInput(
+        channels=(
+            ProjectedDriveChannel(
+                label="graded-test",
+                target_indices=np.asarray([target], dtype=np.int64),
+                signed_contact_weights=np.asarray([weight], dtype=np.float64),
+                amplitudes_mv=np.asarray(amplitudes, dtype=np.float64),
+                anatomical_source_count=1,
+                anatomical_edge_count=1,
+            ),
+        ),
+        dt_ms=dt_ms,
+    )
+
+
+@pytest.mark.parametrize("backend", ["numpy", "numba"])
+def test_zero_projected_drive_preserves_baseline_state_exactly(
+    backend: RuntimeBackend,
+) -> None:
+    baseline = SparseLIFSimulator(_delayed_graph(), backend=backend)
+    driven = SparseLIFSimulator(_delayed_graph(), backend=backend)
+    duration_s = 0.0004
+
+    baseline_result = baseline.advance_chunk(
+        duration_s=duration_s,
+        recording=ChunkRecording(watched_indices=(0, 1, 2)),
+    )
+    driven_result = driven.advance_chunk(
+        duration_s=duration_s,
+        recording=ChunkRecording(watched_indices=(0, 1, 2)),
+        projected_drive=_projected_drive([0.0, 0.0, 0.0, 0.0]),
+    )
+
+    np.testing.assert_array_equal(driven.voltage_mv, baseline.voltage_mv)
+    np.testing.assert_array_equal(
+        driven.synaptic_drive_mv, baseline.synaptic_drive_mv
+    )
+    np.testing.assert_array_equal(
+        driven.refractory_steps_left, baseline.refractory_steps_left
+    )
+    np.testing.assert_array_equal(driven_result.voltage_mv, baseline_result.voltage_mv)
+    np.testing.assert_array_equal(
+        driven_result.synaptic_drive_mv, baseline_result.synaptic_drive_mv
+    )
+    assert driven.visited_edges == baseline.visited_edges == 0
+    assert driven.projected_drive_target_updates == 0
+
+
+@pytest.mark.parametrize("backend", ["numpy", "numba"])
+def test_projected_drive_enters_synaptic_state_without_source_spikes(
+    backend: RuntimeBackend,
+) -> None:
+    simulator = SparseLIFSimulator(_delayed_graph(), backend=backend)
+    result = simulator.advance_chunk(
+        duration_s=0.0003,
+        recording=ChunkRecording(watched_indices=(1,)),
+        projected_drive=_projected_drive([2.0, 0.0, 0.0]),
+    )
+
+    assert result.total_spikes == 0
+    assert result.synaptic_drive_mv[0, 0] == pytest.approx(6.0)
+    assert result.voltage_mv[0, 0] == pytest.approx(simulator.config.resting_mv)
+    assert result.voltage_mv[1, 0] > simulator.config.resting_mv
+    assert simulator.visited_edges == 0
+    assert simulator.projected_drive_target_updates == 1
+
+
+def test_projected_drive_is_suppressed_while_target_is_refractory() -> None:
+    simulator = SparseLIFSimulator(_delayed_graph(), backend="numpy")
+    simulator.synaptic_drive_mv[1] = 3.0
+    simulator.refractory_steps_left[1] = 1
+
+    result = simulator.advance_chunk(
+        duration_s=0.0001,
+        recording=ChunkRecording(watched_indices=(1,)),
+        projected_drive=_projected_drive([2.0]),
+    )
+
+    assert result.synaptic_drive_mv[0, 0] == pytest.approx(3.0)
+    assert simulator.synaptic_drive_mv[1] == pytest.approx(3.0)
+
+
+def test_projected_drive_must_match_chunk_grid_and_network_bounds() -> None:
+    simulator = SparseLIFSimulator(_delayed_graph())
+
+    with pytest.raises(ValueError, match="dt_ms"):
+        simulator.advance_chunk(
+            duration_s=0.0001,
+            projected_drive=_projected_drive([1.0], dt_ms=0.2),
+        )
+    with pytest.raises(ValueError, match="trace length"):
+        simulator.advance_chunk(
+            duration_s=0.0002,
+            projected_drive=_projected_drive([1.0]),
+        )
+    with pytest.raises(ValueError, match="outside network"):
+        simulator.advance_chunk(
+            duration_s=0.0001,
+            projected_drive=_projected_drive([1.0], target=99),
+        )

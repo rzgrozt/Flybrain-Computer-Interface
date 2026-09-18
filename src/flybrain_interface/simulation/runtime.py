@@ -12,6 +12,7 @@ import numpy as np
 import numpy.typing as npt
 
 from flybrain_interface.contracts import NeuralReadout
+from flybrain_interface.sensory.drive import DeterministicProjectedDriveInput
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
 from flybrain_interface.simulation.config import ShiuLIFConfig
 from flybrain_interface.simulation.kernels import (
@@ -65,6 +66,7 @@ class SparseLIFSimulator:
     _refractory_drive_buffer: FloatArray = field(init=False, repr=False)
     _step_index: int = field(init=False, default=0, repr=False)
     visited_edges: int = field(init=False, default=0)
+    projected_drive_target_updates: int = field(init=False, default=0)
     state_update_seconds: float = field(init=False, default=0.0)
     synaptic_propagation_seconds: float = field(init=False, default=0.0)
     recording_seconds: float = field(init=False, default=0.0)
@@ -106,6 +108,7 @@ class SparseLIFSimulator:
         self._delay_ring = [np.empty(0, dtype=np.int64) for _ in range(ring_size)]
         self._step_index = 0
         self.visited_edges = 0
+        self.projected_drive_target_updates = 0
         self.state_update_seconds = 0.0
         self.synaptic_propagation_seconds = 0.0
         self.recording_seconds = 0.0
@@ -222,14 +225,16 @@ class SparseLIFSimulator:
         *,
         duration_s: float,
         recording: ChunkRecording = ChunkRecording(),
+        projected_drive: DeterministicProjectedDriveInput | None = None,
     ) -> ChunkResult:
-        """Advance persistent state; stimulus times are relative to this chunk."""
+        """Advance persistent state; all supplied inputs are relative to this chunk."""
 
         if stimulus is None:
             stimulus = DeterministicSpikeInput(neuron_indices=(), times_s=())
         step_count = _duration_steps(duration_s, self.config.dt_ms)
         watch = self._validated_watch(recording.watched_indices)
         input_schedule = self._input_schedule(stimulus, step_count)
+        self._validate_projected_drive(projected_drive, step_count)
         start_step = self._step_index
         sample_times = (start_step + np.arange(step_count, dtype=np.float64)) * (
             self.config.dt_ms / 1000.0
@@ -247,7 +252,12 @@ class SparseLIFSimulator:
 
         for local_step in range(step_count):
             external_indices = input_schedule.get(local_step)
-            spikes = self._advance(external_indices, stimulus.amplitude_mv)
+            spikes = self._advance(
+                external_indices,
+                stimulus.amplitude_mv,
+                projected_drive=projected_drive,
+                projected_drive_step=local_step,
+            )
             recording_started = perf_counter()
             spike_count = int(spikes.size)
             total_spikes += spike_count
@@ -293,7 +303,12 @@ class SparseLIFSimulator:
         )
 
     def _advance(
-        self, external_indices: IntArray | None, external_amplitude_mv: float
+        self,
+        external_indices: IntArray | None,
+        external_amplitude_mv: float,
+        *,
+        projected_drive: DeterministicProjectedDriveInput | None = None,
+        projected_drive_step: int = 0,
     ) -> IntArray:
         cfg = self.config
         state_started = perf_counter()
@@ -316,7 +331,17 @@ class SparseLIFSimulator:
                 self.synaptic_drive_mv,
                 amplitudes=cfg.synapse_scale_mv,
             )
-            # Brian2's ``unless refractory`` suppresses synaptic writes to g.
+        if projected_drive is not None:
+            for channel in projected_drive.channels:
+                amplitude = float(channel.amplitudes_mv[projected_drive_step])
+                if amplitude == 0.0 or channel.target_indices.size == 0:
+                    continue
+                self.synaptic_drive_mv[channel.target_indices] += (
+                    channel.signed_contact_weights * amplitude
+                )
+                self.projected_drive_target_updates += int(channel.target_indices.size)
+        if due_sources.size or projected_drive is not None:
+            # Refractory state suppresses all synaptic/drive writes to g.
             self.synaptic_drive_mv[refractory_indices] = refractory_drive
         self.synaptic_propagation_seconds += perf_counter() - propagation_started
         if external_indices is not None:
@@ -403,6 +428,24 @@ class SparseLIFSimulator:
                 raise ValueError("a neuron cannot receive duplicate input at one time")
             schedule[step] = values
         return schedule
+
+    def _validate_projected_drive(
+        self,
+        projected_drive: DeterministicProjectedDriveInput | None,
+        step_count: int,
+    ) -> None:
+        if projected_drive is None:
+            return
+        if not isclose(projected_drive.dt_ms, self.config.dt_ms, abs_tol=1e-12):
+            raise ValueError("projected drive dt_ms must match simulator dt_ms")
+        if projected_drive.step_count != step_count:
+            raise ValueError("projected drive trace length must match chunk duration")
+        for channel in projected_drive.channels:
+            targets = channel.target_indices
+            if targets.size and (
+                targets.min() < 0 or targets.max() >= self.connectivity.neuron_count
+            ):
+                raise ValueError("projected drive target index outside network")
 
     def _validate_external_indices(self, input_indices: npt.ArrayLike) -> IntArray:
         indices = np.asarray(input_indices, dtype=np.int64)

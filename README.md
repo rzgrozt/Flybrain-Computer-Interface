@@ -148,6 +148,12 @@ The visual-pathway validation adds an all-R1-R6 uniform-field preset and a canon
 offline 60 Hz frame-clock experiment with subthreshold L1/L2/L3 measurements. See
 [`docs/visual-pathway-validation-2026-09-15.md`](docs/visual-pathway-validation-2026-09-15.md)
 for the reproduced null diagnosis, encoder assumptions, results, and mapping limits.
+A graded early-vision path now models tonic non-spiking photoreceptor release,
+transient L1/L2 dynamics, and a sustained L3 component without changing the
+whole-network LIF baseline. An optional projected-drive interface aggregates the real
+signed L1/L2/L3 outgoing MaleCNS contacts so graded visual changes can enter recurrent
+network activity without fabricating source spikes; see
+[`docs/early-vision-model-2026-09-18.md`](docs/early-vision-model-2026-09-18.md).
 The integrated Brain View renders the pinned MaleCNS measured-soma atlas and maps
 bounded live simulated spike-count windows by exact body ID. See
 [`docs/brain-view.md`](docs/brain-view.md) for truthful coverage, signal semantics,

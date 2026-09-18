@@ -47,6 +47,13 @@ def test_memory_mapped_graph_selects_and_propagates(tmp_path: Path) -> None:
     scaled_result = np.zeros(3, dtype=np.float64)
     graph.accumulate_spikes([0], scaled_result, amplitudes=0.5)
     assert scaled_result.tolist() == [0.0, 2.0, 1.0]
+    projection = graph.project_sources([0, 1])
+    assert projection.source_count == 2
+    assert projection.anatomical_edge_count == 3
+    assert projection.target_indices.tolist() == [1, 2]
+    assert projection.signed_contact_weights.tolist() == [4.0, -1.0]
+    assert not projection.target_indices.flags.writeable
+    assert not projection.signed_contact_weights.flags.writeable
     assert graph.catalog.select(superclass="sensory").tolist() == [0]
     assert graph.catalog.body_ids([2, 0]).tolist() == [30, 10]
 

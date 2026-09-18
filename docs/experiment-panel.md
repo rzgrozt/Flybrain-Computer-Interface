@@ -61,7 +61,7 @@ worker. Limits are deliberately small:
 - experiment duration: 0.01–60 simulated seconds;
 - chunk duration: 1–250 ms and no longer than the run;
 - telemetry: 1–30 Hz;
-- artificial stimulus targets: at most 256 unique neuron indices;
+- artificial stimulus targets: at most 4,096 unique neuron indices;
 - watchlist: at most 32 unique neuron indices;
 - Brain View activity selection: at most 4,096 unique neuron indices;
 - observation populations: at most 16, each with at most 4,096 indices;

@@ -88,6 +88,30 @@ class OutgoingConnections:
 
 
 @dataclass(frozen=True, slots=True)
+class SignedSourceProjection:
+    """Sparse aggregate of signed outgoing contacts from a source population."""
+
+    source_count: int
+    anatomical_edge_count: int
+    target_indices: IntArray
+    signed_contact_weights: FloatArray
+
+    def __post_init__(self) -> None:
+        if self.source_count < 0 or self.anatomical_edge_count < 0:
+            raise ValueError("projection counts cannot be negative")
+        if self.target_indices.ndim != 1 or self.signed_contact_weights.ndim != 1:
+            raise ValueError("projection arrays must be one-dimensional")
+        if self.target_indices.shape != self.signed_contact_weights.shape:
+            raise ValueError("projection target and weight arrays must align")
+        if np.unique(self.target_indices).size != self.target_indices.size:
+            raise ValueError("projection targets must be unique")
+        if not np.isfinite(self.signed_contact_weights).all():
+            raise ValueError("projection weights must be finite")
+        if np.any(self.signed_contact_weights == 0.0):
+            raise ValueError("projection weights must exclude zero entries")
+
+
+@dataclass(frozen=True, slots=True)
 class NeuronCatalog:
     """Small in-memory annotation table aligned with graph neuron indices."""
 
@@ -309,6 +333,75 @@ class MemoryMappedConnectome:
             destination[targets] += counts * (sign * amplitude)
             visited_edges += stop - start
         return visited_edges
+
+
+    def project_sources(self, source_indices: npt.ArrayLike) -> SignedSourceProjection:
+        """Aggregate signed outgoing contacts from a fixed source population.
+
+        This is intended for continuous/graded source activity. The topology and
+        transmitter signs come from the same MaleCNS graph used by spike propagation;
+        only the per-step source amplitude is supplied later by the caller.
+        """
+
+        raw = np.asarray(source_indices)
+        if not np.issubdtype(raw.dtype, np.integer):
+            raise TypeError("source_indices must contain integers")
+        sources = raw.astype(np.int64, copy=False)
+        if sources.ndim != 1:
+            raise ValueError("source_indices must be one-dimensional")
+        if sources.size and (sources.min() < 0 or sources.max() >= self.neuron_count):
+            raise IndexError("source neuron index outside graph")
+        if np.unique(sources).size != sources.size:
+            raise ValueError("source_indices must be unique")
+
+        target_parts: list[IndexArray] = []
+        weight_parts: list[FloatArray] = []
+        anatomical_edge_count = 0
+        for source in sources:
+            sign = int(self.presynaptic_signs[source])
+            if sign == 0:
+                continue
+            start = int(self.outgoing_indptr[source])
+            stop = int(self.outgoing_indptr[source + 1])
+            if start == stop:
+                continue
+            target_parts.append(self.target_indices[start:stop])
+            weight_parts.append(
+                self.outgoing_synapse_counts[start:stop].astype(np.float64)
+                * float(sign)
+            )
+            anatomical_edge_count += stop - start
+
+        if not target_parts:
+            empty_indices = np.empty(0, dtype=np.int64)
+            empty_weights = np.empty(0, dtype=np.float64)
+            empty_indices.flags.writeable = False
+            empty_weights.flags.writeable = False
+            return SignedSourceProjection(
+                source_count=int(sources.size),
+                anatomical_edge_count=0,
+                target_indices=empty_indices,
+                signed_contact_weights=empty_weights,
+            )
+
+        targets = np.concatenate(target_parts).astype(np.int64, copy=False)
+        weights = np.concatenate(weight_parts)
+        order = np.argsort(targets, kind="stable")
+        targets = targets[order]
+        weights = weights[order]
+        unique_targets, starts = np.unique(targets, return_index=True)
+        aggregated = np.add.reduceat(weights, starts)
+        keep = aggregated != 0.0
+        unique_targets = unique_targets[keep].astype(np.int64, copy=False)
+        aggregated = aggregated[keep].astype(np.float64, copy=False)
+        unique_targets.flags.writeable = False
+        aggregated.flags.writeable = False
+        return SignedSourceProjection(
+            source_count=int(sources.size),
+            anatomical_edge_count=anatomical_edge_count,
+            target_indices=unique_targets,
+            signed_contact_weights=aggregated,
+        )
 
     def transmitter_counts(self) -> dict[str, int]:
         counts: dict[str, int] = {}
