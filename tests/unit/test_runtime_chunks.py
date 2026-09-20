@@ -216,6 +216,117 @@ def test_tonic_bias_is_stable_subthreshold_background(
     assert 0.6 < result.population_voltage_delta_mv["motor"] < 0.7
 
 
+@pytest.mark.parametrize("backend", ["numpy", "numba"])
+def test_per_neuron_tonic_bias_only_changes_targeted_neuron(
+    backend: RuntimeBackend,
+) -> None:
+    simulator = SparseLIFSimulator(
+        _delayed_graph(),
+        backend=backend,
+        tonic_bias_overrides_mv={1: 2.0},
+    )
+    result = simulator.advance_chunk(
+        duration_s=0.02,
+        recording=ChunkRecording(watched_indices=(0, 1, 2)),
+    )
+
+    assert result.total_spikes == 0
+    assert result.voltage_mv[-1, 0] == pytest.approx(simulator.config.resting_mv)
+    assert result.voltage_mv[-1, 2] == pytest.approx(simulator.config.resting_mv)
+    assert result.voltage_mv[-1, 1] > simulator.config.resting_mv + 1.2
+
+
+@pytest.mark.parametrize("backend", ["numpy", "numba"])
+def test_per_neuron_threshold_only_changes_targeted_spike_gate(
+    backend: RuntimeBackend,
+) -> None:
+    control = SparseLIFSimulator(_delayed_graph(), backend=backend)
+    targeted = SparseLIFSimulator(
+        _delayed_graph(),
+        backend=backend,
+        threshold_overrides_mv={1: -50.0},
+    )
+    stimulus = DeterministicSpikeInput(
+        neuron_indices=(1,),
+        times_s=(0.0,),
+        amplitude_mv=3.0,
+    )
+
+    control_result = control.advance_chunk(
+        stimulus,
+        duration_s=0.0003,
+        recording=ChunkRecording(include_neuron_counts=True),
+    )
+    targeted_result = targeted.advance_chunk(
+        stimulus,
+        duration_s=0.0003,
+        recording=ChunkRecording(include_neuron_counts=True),
+    )
+
+    assert control_result.neuron_spike_counts is not None
+    assert targeted_result.neuron_spike_counts is not None
+    assert control_result.neuron_spike_counts[1] == 0
+    assert targeted_result.neuron_spike_counts[1] == 1
+
+
+def test_per_neuron_excitability_overrides_are_validated() -> None:
+    graph = _delayed_graph()
+    with pytest.raises(ValueError, match="outside network"):
+        SparseLIFSimulator(graph, tonic_bias_overrides_mv={99: 1.0})
+    with pytest.raises(ValueError, match="exceed resting_mv"):
+        SparseLIFSimulator(graph, threshold_overrides_mv={1: -53.0})
+    with pytest.raises(ValueError, match="zero-input equilibrium"):
+        SparseLIFSimulator(
+            graph,
+            tonic_bias_overrides_mv={1: 4.0},
+            threshold_overrides_mv={1: -49.0},
+        )
+
+
+@pytest.mark.parametrize("backend", ["numpy", "numba"])
+def test_graded_relay_transmits_subthreshold_depolarization(
+    backend: RuntimeBackend,
+) -> None:
+    control = SparseLIFSimulator(_delayed_graph(), backend=backend)
+    graded = SparseLIFSimulator(
+        _delayed_graph(),
+        backend=backend,
+        graded_relay_indices=(0,),
+        graded_relay_gain=1.0,
+        graded_relay_activation_scale_mv=7.0,
+    )
+    control.voltage_mv[0] = -49.0
+    graded.voltage_mv[0] = -49.0
+
+    control_result = control.advance_chunk(
+        duration_s=0.0001,
+        recording=ChunkRecording(watched_indices=(1,)),
+    )
+    graded_result = graded.advance_chunk(
+        duration_s=0.0001,
+        recording=ChunkRecording(watched_indices=(1,)),
+    )
+
+    assert control_result.synaptic_drive_mv[0, 0] == pytest.approx(0.0)
+    assert graded_result.synaptic_drive_mv[0, 0] > 0.0
+    assert graded_result.total_spikes == 0
+
+
+def test_graded_relay_parameters_are_validated() -> None:
+    graph = _delayed_graph()
+    with pytest.raises(ValueError, match="outside network"):
+        SparseLIFSimulator(graph, graded_relay_indices=(99,), graded_relay_gain=1.0)
+    with pytest.raises(ValueError, match="non-negative"):
+        SparseLIFSimulator(graph, graded_relay_indices=(0,), graded_relay_gain=-1.0)
+    with pytest.raises(ValueError, match="positive"):
+        SparseLIFSimulator(
+            graph,
+            graded_relay_indices=(0,),
+            graded_relay_gain=1.0,
+            graded_relay_activation_scale_mv=0.0,
+        )
+
+
 def _projected_drive(
     amplitudes: list[float],
     *,

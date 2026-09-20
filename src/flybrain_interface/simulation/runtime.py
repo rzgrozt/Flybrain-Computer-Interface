@@ -54,6 +54,11 @@ class SparseLIFSimulator:
     config: ShiuLIFConfig = field(default_factory=ShiuLIFConfig)
     backend: RuntimeBackend = "numba"
     subnormal_drive_policy: SubnormalDrivePolicy = "preserve"
+    tonic_bias_overrides_mv: Mapping[int, float] = field(default_factory=dict)
+    threshold_overrides_mv: Mapping[int, float] = field(default_factory=dict)
+    graded_relay_indices: tuple[int, ...] = ()
+    graded_relay_gain: float = 0.0
+    graded_relay_activation_scale_mv: float = 7.0
     voltage_mv: FloatArray = field(init=False, repr=False)
     synaptic_drive_mv: FloatArray = field(init=False, repr=False)
     refractory_steps_left: IntArray = field(init=False, repr=False)
@@ -66,6 +71,9 @@ class SparseLIFSimulator:
     _refractory_index_buffer: IntArray = field(init=False, repr=False)
     _refractory_drive_buffer: FloatArray = field(init=False, repr=False)
     _clamped_index_array: IntArray = field(init=False, repr=False)
+    _tonic_bias_mv: FloatArray = field(init=False, repr=False)
+    _threshold_mv: FloatArray = field(init=False, repr=False)
+    _graded_relay_index_array: IntArray = field(init=False, repr=False)
     _step_index: int = field(init=False, default=0, repr=False)
     visited_edges: int = field(init=False, default=0)
     projected_drive_target_updates: int = field(init=False, default=0)
@@ -86,7 +94,20 @@ class SparseLIFSimulator:
         self._clamped_index_array = self._validate_clamped_indices(
             self.clamped_indices
         )
+        self._graded_relay_index_array = self._validate_external_indices(
+            self.graded_relay_indices
+        )
+        if not np.isfinite(self.graded_relay_gain) or self.graded_relay_gain < 0.0:
+            raise ValueError("graded_relay_gain must be finite and non-negative")
+        if (
+            not np.isfinite(self.graded_relay_activation_scale_mv)
+            or self.graded_relay_activation_scale_mv <= 0.0
+        ):
+            raise ValueError(
+                "graded_relay_activation_scale_mv must be finite and positive"
+            )
         cfg = self.config
+        self._tonic_bias_mv, self._threshold_mv = self._build_excitability_arrays()
         self._membrane_decay = exp(-cfg.dt_ms / cfg.membrane_tau_ms)
         self._synapse_decay = exp(-cfg.dt_ms / cfg.synapse_tau_ms)
         self._drive_coupling = (
@@ -134,8 +155,8 @@ class SparseLIFSimulator:
             self._refractory_index_buffer,
             self._refractory_drive_buffer,
             self.config.resting_mv,
-            self.config.threshold_mv,
-            self.config.tonic_bias_mv,
+            self._threshold_mv,
+            self._tonic_bias_mv,
             self._membrane_decay,
             self._synapse_decay,
             self._drive_coupling,
@@ -377,7 +398,32 @@ class SparseLIFSimulator:
                     channel.signed_contact_weights * amplitude
                 )
                 self.projected_drive_target_updates += int(channel.target_indices.size)
-        if due_sources.size or projected_drive is not None:
+        graded_wrote = False
+        if self._graded_relay_index_array.size and self.graded_relay_gain > 0.0:
+            relay_indices = self._graded_relay_index_array
+            voltage_delta = self.voltage_mv[relay_indices] - cfg.resting_mv
+            active = voltage_delta > 0.0
+            if spikes.size:
+                active &= ~np.isin(relay_indices, spikes, assume_unique=True)
+            if np.any(active):
+                active_sources = relay_indices[active]
+                release_fraction = np.clip(
+                    voltage_delta[active] / self.graded_relay_activation_scale_mv,
+                    0.0,
+                    1.0,
+                )
+                amplitudes = (
+                    cfg.synapse_scale_mv
+                    * self.graded_relay_gain
+                    * release_fraction
+                )
+                self.visited_edges += self.connectivity.accumulate_spikes(
+                    active_sources,
+                    self.synaptic_drive_mv,
+                    amplitudes=amplitudes,
+                )
+                graded_wrote = True
+        if due_sources.size or projected_drive is not None or graded_wrote:
             # Refractory state suppresses all synaptic/drive writes to g.
             self.synaptic_drive_mv[refractory_indices] = refractory_drive
         self.synaptic_propagation_seconds += perf_counter() - propagation_started
@@ -424,7 +470,7 @@ class SparseLIFSimulator:
                 np.abs(self.synaptic_drive_mv) < self._minimum_preserved_drive_mv
             )
             self.synaptic_drive_mv[small_drive] = 0.0
-        equilibrium_mv = cfg.resting_mv + cfg.tonic_bias_mv
+        equilibrium_mv = cfg.resting_mv + self._tonic_bias_mv
         self.voltage_mv -= equilibrium_mv
         self.voltage_mv *= self._membrane_decay
         self.voltage_mv += equilibrium_mv
@@ -434,7 +480,7 @@ class SparseLIFSimulator:
         self.synaptic_drive_mv[refractory_indices] = refractory_drive
         self.refractory_steps_left[~active] -= 1
 
-        spikes = np.flatnonzero(active & (self.voltage_mv > cfg.threshold_mv)).astype(
+        spikes = np.flatnonzero(active & (self.voltage_mv > self._threshold_mv)).astype(
             np.int64, copy=False
         )
         self._spike_buffer[: spikes.size] = spikes
@@ -485,6 +531,34 @@ class SparseLIFSimulator:
         ):
             raise ValueError("clamped neuron index outside network")
         return values
+
+    def _build_excitability_arrays(self) -> tuple[FloatArray, FloatArray]:
+        count = self.connectivity.neuron_count
+        tonic = np.full(count, self.config.tonic_bias_mv, dtype=np.float64)
+        threshold = np.full(count, self.config.threshold_mv, dtype=np.float64)
+        for index, value in self.tonic_bias_overrides_mv.items():
+            neuron = int(index)
+            bias = float(value)
+            if neuron < 0 or neuron >= count:
+                raise ValueError("tonic bias override index outside network")
+            if not np.isfinite(bias):
+                raise ValueError("tonic bias override must be finite")
+            tonic[neuron] = bias
+        for index, value in self.threshold_overrides_mv.items():
+            neuron = int(index)
+            threshold_value = float(value)
+            if neuron < 0 or neuron >= count:
+                raise ValueError("threshold override index outside network")
+            if not np.isfinite(threshold_value):
+                raise ValueError("threshold override must be finite")
+            threshold[neuron] = threshold_value
+        if np.any(threshold <= self.config.resting_mv):
+            raise ValueError("threshold override must exceed resting_mv")
+        if np.any(self.config.resting_mv + tonic >= threshold):
+            raise ValueError(
+                "per-neuron tonic bias must keep zero-input equilibrium below threshold"
+            )
+        return tonic, threshold
 
     def _validate_projected_drive(
         self,

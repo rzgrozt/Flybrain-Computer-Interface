@@ -19,8 +19,8 @@ def advance_state_numba(
     refractory_index_buffer: IntArray,
     refractory_drive_buffer: FloatArray,
     resting_mv: float,
-    threshold_mv: float,
-    tonic_bias_mv: float,
+    threshold_mv: FloatArray,
+    tonic_bias_mv: FloatArray,
     membrane_decay: float,
     synapse_decay: float,
     drive_coupling: float,
@@ -35,12 +35,12 @@ def advance_state_numba(
             old_drive = synaptic_drive_mv[neuron]
             voltage_mv[neuron] = (
                 resting_mv
-                + tonic_bias_mv
-                + (old_voltage - resting_mv - tonic_bias_mv) * membrane_decay
+                + tonic_bias_mv[neuron]
+                + (old_voltage - resting_mv - tonic_bias_mv[neuron]) * membrane_decay
                 + old_drive * drive_coupling
             )
             synaptic_drive_mv[neuron] = old_drive * synapse_decay
-            if voltage_mv[neuron] > threshold_mv:
+            if voltage_mv[neuron] > threshold_mv[neuron]:
                 spike_buffer[spike_count] = neuron
                 spike_count += 1
         else:
@@ -60,8 +60,8 @@ def advance_state_numba_zero_subnormal(
     refractory_index_buffer: IntArray,
     refractory_drive_buffer: FloatArray,
     resting_mv: float,
-    threshold_mv: float,
-    tonic_bias_mv: float,
+    threshold_mv: FloatArray,
+    tonic_bias_mv: FloatArray,
     membrane_decay: float,
     synapse_decay: float,
     drive_coupling: float,
@@ -79,12 +79,12 @@ def advance_state_numba_zero_subnormal(
                 old_drive = 0.0
             voltage_mv[neuron] = (
                 resting_mv
-                + tonic_bias_mv
-                + (old_voltage - resting_mv - tonic_bias_mv) * membrane_decay
+                + tonic_bias_mv[neuron]
+                + (old_voltage - resting_mv - tonic_bias_mv[neuron]) * membrane_decay
                 + old_drive * drive_coupling
             )
             synaptic_drive_mv[neuron] = old_drive * synapse_decay
-            if voltage_mv[neuron] > threshold_mv:
+            if voltage_mv[neuron] > threshold_mv[neuron]:
                 spike_buffer[spike_count] = neuron
                 spike_count += 1
         else:
