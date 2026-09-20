@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-graded-relay-sensitivity-v1",
+  "dataset": "male-cns:v1.0",
+  "localization_config": "configs/spatial-motor-pathway-localization-v1.json",
+  "relay_superclasses": ["ol_intrinsic", "visual_projection", "visual_centrifugal"],
+  "graded_relay_gain_values": [0.25, 0.5, 1.0],
+  "graded_relay_activation_scale_mv": 7.0,
+  "gates": {
+    "require_motor_nonzero_drive": true,
+    "maximum_network_spikes_per_run": 200000
+  }
+}
