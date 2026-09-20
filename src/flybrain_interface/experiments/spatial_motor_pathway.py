@@ -716,6 +716,11 @@ def run_localization(
     config_path: Path = DEFAULT_CONFIG,
     *,
     anatomy_only: bool = False,
+    hop1_tonic_bias_mv: float | None = None,
+    hop1_threshold_mv: float | None = None,
+    graded_relay_superclasses: tuple[str, ...] = (),
+    graded_relay_gain: float = 0.0,
+    graded_relay_activation_scale_mv: float = 7.0,
 ) -> dict[str, Any]:
     config = load_config(config_path)
     base_config_path = ROOT / str(config["base_config"])
@@ -730,6 +735,29 @@ def run_localization(
         top_paths=int(config["top_paths_per_target"]),
     )
     watch_indices = _watchlist(pathways, setup.lamina_sources)
+    hop1_indices = tuple(
+        sorted(
+            {
+                neuron
+                for pathway in pathways.values()
+                if pathway.distance >= 1
+                for neuron in pathway.layers[1]
+            }
+        )
+    )
+    allowed_graded_superclasses = set(graded_relay_superclasses)
+    graded_relay_indices = tuple(
+        sorted(
+            {
+                neuron
+                for pathway in pathways.values()
+                for layer in pathway.layers[1:-1]
+                for neuron in layer
+                if setup.graph.catalog.table["superclass"][neuron].as_py()
+                in allowed_graded_superclasses
+            }
+        )
+    )
     anatomy_summary = {
         "lamina_source_count": len(setup.lamina_sources),
         "reachable_target_count": len(pathways),
@@ -738,6 +766,8 @@ def run_localization(
             for population in motor_populations
         ),
         "pathway_watch_count": len(watch_indices),
+        "hop1_intervention_count": len(hop1_indices),
+        "graded_relay_count": len(graded_relay_indices),
         "hop_layer_union_counts": {
             str(hop): len(
                 {
@@ -801,6 +831,19 @@ def run_localization(
             SubnormalDrivePolicy,
             str(runtime["subnormal_drive_policy"]),
         ),
+        tonic_bias_overrides_mv=(
+            {index: float(hop1_tonic_bias_mv) for index in hop1_indices}
+            if hop1_tonic_bias_mv is not None
+            else {}
+        ),
+        threshold_overrides_mv=(
+            {index: float(hop1_threshold_mv) for index in hop1_indices}
+            if hop1_threshold_mv is not None
+            else {}
+        ),
+        graded_relay_indices=graded_relay_indices,
+        graded_relay_gain=float(graded_relay_gain),
+        graded_relay_activation_scale_mv=float(graded_relay_activation_scale_mv),
     )
     simulator.prepare()
     positions = tuple(float(value) for value in config["positions"])
@@ -846,6 +889,18 @@ def run_localization(
         "schema_version": 1,
         "experiment": config["name"],
         "mode": "full",
+        "intervention": {
+            "scope": "shortest-effective-path-relays",
+            "hop1_neuron_count": len(hop1_indices),
+            "tonic_bias_mv": hop1_tonic_bias_mv,
+            "threshold_mv": hop1_threshold_mv,
+            "graded_relay_superclasses": sorted(allowed_graded_superclasses),
+            "graded_relay_neuron_count": len(graded_relay_indices),
+            "graded_relay_gain": float(graded_relay_gain),
+            "graded_relay_activation_scale_mv": float(
+                graded_relay_activation_scale_mv
+            ),
+        },
         "interpretation": (
             "Shortest effective fast-chemical paths are reconstructed from the "
             "spatial L1/L2/L3 source set to anatomically selected motor DNs. "
