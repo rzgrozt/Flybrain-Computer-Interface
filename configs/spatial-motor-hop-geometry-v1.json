@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-hop-geometry-v1",
+  "dataset": "male-cns:v1.0",
+  "pathway_config": "configs/spatial-motor-pathway-localization-v1.json",
+  "train_positions": [0.15, 0.5, 0.85],
+  "test_positions": [0.325, 0.675],
+  "graded_relay": {
+    "superclasses": ["ol_intrinsic", "visual_projection", "visual_centrifugal"],
+    "gain": 0.25,
+    "activation_scale_mv": 7.0
+  },
+  "ridge": {
+    "alpha": 0.01,
+    "standardization_epsilon": 1e-9
+  },
+  "gates": {
+    "maximum_test_mae": 0.2,
+    "minimum_test_side_accuracy": 1.0
+  }
+}
