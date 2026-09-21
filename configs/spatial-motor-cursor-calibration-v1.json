@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-cursor-calibration-v1",
+  "motor_config": "configs/spatial-motor-graded-directionality-v1.json",
+  "train_positions": [0.15, 0.5, 0.85],
+  "test_positions": [0.325, 0.675],
+  "ridge": {
+    "alpha": 0.01,
+    "standardization_epsilon": 1e-9
+  },
+  "cursor": {
+    "start": 0.5,
+    "gain": 2.0,
+    "max_delta": 1.0,
+    "step_scale": 0.1
+  },
+  "gates": {
+    "maximum_test_mae": 0.2,
+    "require_test_side_correct": true
+  }
+}

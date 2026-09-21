@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-horizontal-cursor-validation-v1",
+  "dataset": "male-cns:v1.0",
+  "base_config": "configs/spatial-graded-lamina-v1.json",
+  "axes": ["horizontal"],
+  "positions": [0.15, 0.2375, 0.5, 0.7625, 0.85],
+  "motor_populations": [
+    {"key": "steer_left", "type": "DNa02", "soma_side": "L"},
+    {"key": "steer_right", "type": "DNa02", "soma_side": "R"},
+    {"key": "steer_left_secondary", "type": "DNg13", "soma_side": "L"},
+    {"key": "steer_right_secondary", "type": "DNg13", "soma_side": "R"},
+    {"key": "forward", "type": "DNp09", "soma_side": null},
+    {"key": "backward", "type": "MDN", "soma_side": null}
+  ],
+  "graded_relay": {
+    "superclasses": ["ol_intrinsic", "visual_projection", "visual_centrifugal"],
+    "maximum_path_hops": 3,
+    "gain": 0.25,
+    "activation_scale_mv": 7.0
+  },
+  "compute_hops": false,
+  "gates": {
+    "required_voltage_populations": ["steer_left", "steer_right", "forward", "backward"],
+    "minimum_peak_abs_voltage_delta_mv": 0.001
+  }
+}
