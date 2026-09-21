@@ -146,6 +146,32 @@ def _population_metrics(
         "mean_abs_peak_drive_mv": float(np.mean(np.abs(drive))),
         "max_abs_peak_drive_mv": float(np.max(np.abs(drive))),
         "spike_count": int(np.sum(spike)),
+        "members": [
+            {
+                "neuron_index": int(neuron_index),
+                "body_id": int(body_id),
+                "instance": instance,
+                "signed_peak_voltage_delta_mv": float(member_voltage),
+                "signed_peak_drive_mv": float(member_drive),
+                "spike_count": int(member_spike),
+            }
+            for (
+                neuron_index,
+                body_id,
+                instance,
+                member_voltage,
+                member_drive,
+                member_spike,
+            ) in zip(
+                population.neuron_indices,
+                population.body_ids,
+                population.instances,
+                voltage,
+                drive,
+                spike,
+                strict=True,
+            )
+        ],
     }
 
 
@@ -201,6 +227,67 @@ def _shortest_upstream_hop(
             return None
         visited.update(frontier)
     return None
+
+
+def _effective_forward_distances(
+    graph: MemoryMappedConnectome,
+    sources: set[int],
+    *,
+    max_hops: int,
+) -> dict[int, int]:
+    distances = {int(source): 0 for source in sources}
+    frontier = set(distances)
+    for hop in range(1, max_hops + 1):
+        next_frontier: set[int] = set()
+        for source in frontier:
+            if int(graph.presynaptic_signs[source]) == 0:
+                continue
+            for target in graph.outgoing(source).target_indices:
+                target_index = int(target)
+                if target_index not in distances:
+                    distances[target_index] = hop
+                    next_frontier.add(target_index)
+        if not next_frontier:
+            break
+        frontier = next_frontier
+    return distances
+
+
+def _shortest_effective_layers(
+    graph: MemoryMappedConnectome,
+    forward: dict[int, int],
+    target_index: int,
+    *,
+    max_hops: int,
+) -> tuple[tuple[int, ...], ...] | None:
+    distance = forward.get(target_index)
+    if distance is None or distance > max_hops:
+        return None
+    reverse = {target_index: 0}
+    frontier = {target_index}
+    for hop in range(1, distance + 1):
+        next_frontier: set[int] = set()
+        for target in frontier:
+            for source in graph.incoming(target).source_indices:
+                source_index = int(source)
+                if int(graph.presynaptic_signs[source_index]) == 0:
+                    continue
+                if source_index not in reverse:
+                    reverse[source_index] = hop
+                    next_frontier.add(source_index)
+        frontier = next_frontier
+    layers = tuple(
+        tuple(
+            sorted(
+                neuron
+                for neuron, source_distance in forward.items()
+                if source_distance == hop
+                and reverse.get(neuron) == distance - hop
+            )
+        )
+        for hop in range(distance + 1)
+    )
+    return layers if all(layers) else None
 
 
 def _correlation(
@@ -309,6 +396,44 @@ def run_characterization(
         )
         if source is not None
     }
+    graded_relay_spec = config.get("graded_relay")
+    graded_relay_indices: tuple[int, ...] = ()
+    graded_relay_gain = 0.0
+    graded_relay_activation_scale_mv = 7.0
+    if graded_relay_spec is not None:
+        maximum_path_hops = int(graded_relay_spec.get("maximum_path_hops", 3))
+        allowed_superclasses = {
+            str(value) for value in graded_relay_spec["superclasses"]
+        }
+        forward = _effective_forward_distances(
+            graph,
+            set(lamina_sources),
+            max_hops=maximum_path_hops,
+        )
+        relay_set: set[int] = set()
+        for population in motor_populations:
+            for neuron_index in population.neuron_indices:
+                layers = _shortest_effective_layers(
+                    graph,
+                    forward,
+                    neuron_index,
+                    max_hops=maximum_path_hops,
+                )
+                if layers is None:
+                    continue
+                for layer in layers[1:-1]:
+                    for relay_index in layer:
+                        superclass = graph.catalog.table["superclass"][
+                            relay_index
+                        ].as_py()
+                        if superclass in allowed_superclasses:
+                            relay_set.add(relay_index)
+        graded_relay_indices = tuple(sorted(relay_set))
+        graded_relay_gain = float(graded_relay_spec["gain"])
+        graded_relay_activation_scale_mv = float(
+            graded_relay_spec.get("activation_scale_mv", 7.0)
+        )
+
     motor_population_hops = (
         {
             population.key: [
@@ -355,6 +480,9 @@ def run_characterization(
             SubnormalDrivePolicy,
             str(runtime["subnormal_drive_policy"]),
         ),
+        graded_relay_indices=graded_relay_indices,
+        graded_relay_gain=graded_relay_gain,
+        graded_relay_activation_scale_mv=graded_relay_activation_scale_mv,
     )
     simulator.prepare()
     graded_config = _graded_config(base, lif_config)
@@ -452,6 +580,12 @@ def run_characterization(
         "motor_populations": [asdict(population) for population in motor_populations],
         "motor_population_hops": motor_population_hops,
         "watch_count": len(watch_indices),
+        "graded_relay": {
+            "enabled": bool(graded_relay_indices),
+            "neuron_count": len(graded_relay_indices),
+            "gain": graded_relay_gain,
+            "activation_scale_mv": graded_relay_activation_scale_mv,
+        },
         "axes": axes,
         "gates": gates,
         "total_wall_seconds": time.perf_counter() - started,
