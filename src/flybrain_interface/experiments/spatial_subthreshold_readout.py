@@ -323,6 +323,7 @@ def _run_position(
     graded_config: GradedEarlyVisionConfig,
     lif_config: ShiuLIFConfig,
     duration_s: float,
+    temporal_bins: int = 0,
 ) -> dict[str, Any]:
     condition = {
         "name": f"dark_{axis}_{position:.4f}",
@@ -372,7 +373,7 @@ def _run_position(
     spike = result.neuron_spike_counts[
         np.asarray(downstream_watch, dtype=np.int64)
     ].astype(np.float64)
-    return {
+    payload: dict[str, Any] = {
         "position": position,
         "voltage": voltage,
         "drive": drive,
@@ -380,6 +381,24 @@ def _run_position(
         "total_network_spikes": result.total_spikes,
         "frame_sha256": encoding.frame_sha256,
     }
+    if temporal_bins:
+        if temporal_bins <= 0:
+            raise ValueError("temporal_bins must be positive when enabled")
+        voltage_window = result.voltage_mv[window] - simulator.config.resting_mv
+        drive_window = result.synaptic_drive_mv[window]
+        if voltage_window.shape[0] < temporal_bins:
+            raise ValueError("temporal bin count exceeds available feature samples")
+        index_bins = np.array_split(
+            np.arange(voltage_window.shape[0], dtype=np.int64),
+            temporal_bins,
+        )
+        payload["temporal_voltage"] = np.vstack(
+            [_signed_peak(voltage_window[indices]) for indices in index_bins]
+        )
+        payload["temporal_drive"] = np.vstack(
+            [_signed_peak(drive_window[indices]) for indices in index_bins]
+        )
+    return payload
 
 
 def _decode_axis(
