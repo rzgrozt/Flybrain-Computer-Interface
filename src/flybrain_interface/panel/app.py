@@ -24,6 +24,7 @@ from flybrain_interface.panel.models import (
     ExperimentConfig,
     NeighborhoodRequest,
 )
+from flybrain_interface.panel.pathways_v2 import pathway_catalog, target_paths
 from flybrain_interface.panel.recordings import (
     RECORDINGS,
     cached_recording,
@@ -139,6 +140,25 @@ def create_app(
                 item["available"] for item in recording_catalog()["recordings"]
             ),
         }
+
+    @app.get("/api/v2/pathways")
+    async def pathways_catalog_v2() -> dict[str, Any]:
+        try:
+            return await asyncio.to_thread(pathway_catalog)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise HTTPException(503, "anatomical pathways unavailable") from error
+
+    @app.get("/api/v2/pathways/{target_index}")
+    async def pathways_target_v2(target_index: int) -> dict[str, Any]:
+        if target_index < 0 or target_index >= 166700:
+            raise HTTPException(404, "unknown anatomical target")
+        try:
+            result = await asyncio.to_thread(target_paths, target_index)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise HTTPException(503, "anatomical pathways unavailable") from error
+        if result is None:
+            raise HTTPException(404, "unknown anatomical target")
+        return result
 
     @app.get("/api/v2/recordings")
     async def recordings() -> dict[str, Any]:
