@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-pruned-dense-horizontal-v1",
+  "dataset": "male-cns:v1.0",
+  "base_config": "configs/spatial-graded-lamina-v1.json",
+  "axes": ["horizontal"],
+  "positions": [0.10, 0.1667, 0.2333, 0.30, 0.3667, 0.4333, 0.50, 0.5667, 0.6333, 0.70, 0.7667, 0.8333, 0.90],
+  "motor_populations": [
+    {"key": "steer_left", "type": "DNa02", "soma_side": "L"},
+    {"key": "steer_right", "type": "DNa02", "soma_side": "R"},
+    {"key": "steer_left_secondary", "type": "DNg13", "soma_side": "L"},
+    {"key": "steer_right_secondary", "type": "DNg13", "soma_side": "R"},
+    {"key": "forward", "type": "DNp09", "soma_side": null},
+    {"key": "backward", "type": "MDN", "soma_side": null}
+  ],
+  "graded_relay": {
+    "superclasses": ["ol_intrinsic", "visual_projection", "visual_centrifugal"],
+    "exclude_types": ["LLPC1", "LC19", "LoVP93"],
+    "maximum_path_hops": 3,
+    "gain": 0.25,
+    "activation_scale_mv": 7.0
+  },
+  "compute_hops": false,
+  "gates": {
+    "required_voltage_populations": ["steer_left", "steer_right", "forward", "backward"],
+    "minimum_peak_abs_voltage_delta_mv": 0.001
+  }
+}
