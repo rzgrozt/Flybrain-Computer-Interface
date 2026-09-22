@@ -52,7 +52,7 @@ def _fit_ridge(features: np.ndarray, labels: np.ndarray, *, alpha: float) -> np.
 
 def _scores(weights: np.ndarray, features: np.ndarray) -> np.ndarray:
     design = np.column_stack((np.ones(features.shape[0]), features))
-    return design @ weights
+    return np.asarray(design @ weights, dtype=np.float64)
 
 
 def _fit_pipeline(
