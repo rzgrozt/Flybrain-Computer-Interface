@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-virtual-cursor-rbf-vertical-generalization-v1",
+  "broad_state_config": "configs/spatial-motor-broad-descending-vertical-v1.json",
+  "classifier_backend": "rbf_pca",
+  "classifier_config": "configs/spatial-motor-broad-dn-rbf-direction-vertical-v1.json",
+  "classifier_artifact": "artifacts/spatial-motor-broad-dn-rbf-direction-vertical-v1.json",
+  "control_axis": "vertical",
+  "episodes": [
+    {"start_y": 0.51, "target_y": 0.13},
+    {"start_y": 0.49, "target_y": 0.87},
+    {"start_y": 0.19, "target_y": 0.56},
+    {"start_y": 0.81, "target_y": 0.44}
+  ],
+  "cursor": {
+    "step_scale": 0.0667,
+    "success_tolerance": 0.07,
+    "max_steps": 10,
+    "reversal_margin_threshold": 0.15
+  },
+  "relative_visualization": {
+    "center": 0.5,
+    "minimum": 0.10,
+    "maximum": 0.90
+  },
+  "gates": {
+    "minimum_episode_success_fraction": 1.0,
+    "require_mean_distance_reduction": true
+  }
+}
