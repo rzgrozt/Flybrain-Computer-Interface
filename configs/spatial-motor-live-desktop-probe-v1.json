@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-live-desktop-probe-v1",
+  "broad_state_config": "configs/spatial-motor-broad-descending-state-v1.json",
+  "horizontal": {
+    "classifier_backend": "rbf_pca",
+    "classifier_config": "configs/spatial-motor-broad-dn-rbf-direction-v1.json",
+    "classifier_artifact": "artifacts/spatial-motor-broad-dn-rbf-direction-v1.json"
+  },
+  "vertical": {
+    "classifier_backend": "rbf_pca",
+    "classifier_config": "configs/spatial-motor-broad-dn-rbf-direction-vertical-v1.json",
+    "classifier_artifact": "artifacts/spatial-motor-broad-dn-rbf-direction-vertical-v1.json"
+  },
+  "capture": {
+    "backend": "spectacle",
+    "include_pointer": false,
+    "timeout_s": 5.0
+  },
+  "target": {
+    "rgb": [255, 0, 255],
+    "tolerance": 8,
+    "minimum_pixels": 100
+  },
+  "relative_visualization": {
+    "center": 0.5,
+    "minimum": 0.10,
+    "maximum": 0.90
+  },
+  "os_pointer": {
+    "backend": "dry_run",
+    "enabled": false,
+    "pixel_step": 24
+  },
+  "gates": {
+    "require_action_toward_target": true
+  }
+}
