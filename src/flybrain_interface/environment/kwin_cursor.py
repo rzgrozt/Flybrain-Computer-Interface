@@ -160,7 +160,7 @@ class KWinCursorBridge:
 
     async def _serve(self) -> None:
         try:
-            from dbus_next.aio import MessageBus
+            from dbus_next.aio import MessageBus  # type: ignore[attr-defined]
             from dbus_next.service import ServiceInterface, method
         except ImportError as error:
             raise RuntimeError(
@@ -173,13 +173,13 @@ class KWinCursorBridge:
             def __init__(self) -> None:
                 super().__init__(owner.interface_name)
 
-            @method()
+            @method()  # type: ignore[untyped-decorator]
             def ReportCursor(
                 self,
-                x: "i",
-                y: "i",
-                width: "i",
-                height: "i",
+                x: "i",  # type: ignore[name-defined]
+                y: "i",  # type: ignore[name-defined]
+                width: "i",  # type: ignore[name-defined]
+                height: "i",  # type: ignore[name-defined]
             ) -> None:
                 position = CursorPosition(
                     x=int(x),
@@ -199,7 +199,7 @@ class KWinCursorBridge:
         self._async_stop = asyncio.Event()
         self._service_ready.set()
         await self._async_stop.wait()
-        bus.disconnect()
+        bus.disconnect()  # type: ignore[no-untyped-call]
 
     def _load_kwin_script(self) -> None:
         script = self._script_source()
