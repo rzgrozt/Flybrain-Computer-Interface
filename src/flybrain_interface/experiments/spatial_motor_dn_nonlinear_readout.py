@@ -71,7 +71,7 @@ def _standardize_apply(
     scale: np.ndarray,
 ) -> np.ndarray:
     result = (features - mean) / scale
-    return result
+    return np.asarray(result, dtype=np.float64)
 
 
 def _fit_linear_ridge(
@@ -114,7 +114,7 @@ def _rbf_kernel(
 ) -> np.ndarray:
     delta = left[:, None, :] - right[None, :, :]
     squared = np.sum(delta * delta, axis=2)
-    return np.exp(-gamma * squared)
+    return np.asarray(np.exp(-gamma * squared), dtype=np.float64)
 
 
 def _fit_rbf_ridge(
