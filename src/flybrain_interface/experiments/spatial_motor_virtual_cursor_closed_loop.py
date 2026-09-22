@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import numpy as np
 
@@ -205,7 +205,7 @@ def _sample_state(
     if axis not in {"horizontal", "vertical"}:
         raise ValueError(f"unsupported control axis: {axis}")
     return _run_position(
-        axis,
+        cast(Literal["horizontal", "vertical"], axis),
         position,
         setup.graph,
         simulator,
