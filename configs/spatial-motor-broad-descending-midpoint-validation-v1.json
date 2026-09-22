@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-broad-descending-midpoint-validation-v1",
+  "dataset": "male-cns:v1.0",
+  "motor_config": "configs/spatial-motor-pruned-dense-horizontal-v1.json",
+  "axes": ["horizontal"],
+  "positions": [0.1333, 0.20, 0.2667, 0.3333, 0.6667, 0.7333, 0.80, 0.8667],
+  "maximum_descending_hops": 3,
+  "temporal_bins": 3
+}
