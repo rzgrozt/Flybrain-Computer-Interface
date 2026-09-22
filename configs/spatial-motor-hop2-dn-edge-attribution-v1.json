@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-hop2-dn-edge-attribution-v1",
+  "dataset": "male-cns:v1.0",
+  "pathway_config": "configs/spatial-motor-pathway-localization-v1.json",
+  "target_populations": [
+    "steer_left",
+    "steer_right",
+    "steer_left_secondary",
+    "steer_right_secondary"
+  ],
+  "preserving_types": ["PS077", "PS230"],
+  "unstable_types": ["LLPC1", "LC19", "LoVP93", "PLP301m", "PLP300m", "AN06B009"]
+}
