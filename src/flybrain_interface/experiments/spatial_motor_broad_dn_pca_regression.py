@@ -46,7 +46,7 @@ def _fit_ridge(
 
 def _predict(weights: np.ndarray, features: np.ndarray) -> np.ndarray:
     design = np.column_stack((np.ones(features.shape[0]), features))
-    return design @ weights
+    return np.asarray(design @ weights, dtype=np.float64)
 
 
 def _fit_pipeline(
