@@ -405,6 +405,9 @@ def run_characterization(
         allowed_superclasses = {
             str(value) for value in graded_relay_spec["superclasses"]
         }
+        excluded_types = {
+            str(value) for value in graded_relay_spec.get("exclude_types", [])
+        }
         forward = _effective_forward_distances(
             graph,
             set(lamina_sources),
@@ -426,7 +429,11 @@ def run_characterization(
                         superclass = graph.catalog.table["superclass"][
                             relay_index
                         ].as_py()
-                        if superclass in allowed_superclasses:
+                        type_name = graph.catalog.table["type"][relay_index].as_py()
+                        if (
+                            superclass in allowed_superclasses
+                            and str(type_name) not in excluded_types
+                        ):
                             relay_set.add(relay_index)
         graded_relay_indices = tuple(sorted(relay_set))
         graded_relay_gain = float(graded_relay_spec["gain"])
@@ -585,6 +592,7 @@ def run_characterization(
             "neuron_count": len(graded_relay_indices),
             "gain": graded_relay_gain,
             "activation_scale_mv": graded_relay_activation_scale_mv,
+            "excluded_types": sorted(excluded_types) if graded_relay_spec else [],
         },
         "axes": axes,
         "gates": gates,
