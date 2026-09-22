@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-hop2-causal-vertical-validation-v1",
+  "dataset": "male-cns:v1.0",
+  "hop_geometry_config": "configs/spatial-motor-hop-geometry-v1.json",
+  "axes": ["vertical"],
+  "target_populations": [
+    "steer_left",
+    "steer_right",
+    "steer_left_secondary",
+    "steer_right_secondary"
+  ],
+  "remove_hop2_types": ["LLPC1", "LC19", "LoVP93"],
+  "add_hop2_types": [],
+  "variants": [
+    "baseline",
+    "remove_disruptive_visual_projection"
+  ]
+}

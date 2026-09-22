@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-hop2-causal-v1",
+  "dataset": "male-cns:v1.0",
+  "hop_geometry_config": "configs/spatial-motor-hop-geometry-v1.json",
+  "axes": ["horizontal"],
+  "target_populations": [
+    "steer_left",
+    "steer_right",
+    "steer_left_secondary",
+    "steer_right_secondary"
+  ],
+  "remove_hop2_types": ["LLPC1", "LC19", "LoVP93"],
+  "add_hop2_types": ["PS077", "PS230"],
+  "variants": [
+    "baseline",
+    "remove_disruptive_visual_projection",
+    "add_preserving_cb_intrinsic",
+    "combined"
+  ]
+}
