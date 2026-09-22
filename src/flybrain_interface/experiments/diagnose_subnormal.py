@@ -44,6 +44,8 @@ def diagnose_subnormal_cost(
     )
 
     voltage = np.full(neuron_count, config.resting_mv, dtype=np.float64)
+    threshold = np.full(neuron_count, config.threshold_mv, dtype=np.float64)
+    tonic_bias = np.full(neuron_count, config.tonic_bias_mv, dtype=np.float64)
     refractory = np.zeros(neuron_count, dtype=np.int64)
     spike_buffer = np.empty(neuron_count, dtype=np.int64)
     refractory_indices = np.empty(neuron_count, dtype=np.int64)
@@ -56,8 +58,8 @@ def diagnose_subnormal_cost(
         refractory_indices,
         refractory_drive,
         config.resting_mv,
-        config.threshold_mv,
-        config.tonic_bias_mv,
+        threshold,
+        tonic_bias,
         membrane_decay,
         synapse_decay,
         drive_coupling,
@@ -82,8 +84,8 @@ def diagnose_subnormal_cost(
                         refractory_indices,
                         refractory_drive,
                         config.resting_mv,
-                        config.threshold_mv,
-                        config.tonic_bias_mv,
+                        threshold,
+                        tonic_bias,
                         membrane_decay,
                         synapse_decay,
                         drive_coupling,
