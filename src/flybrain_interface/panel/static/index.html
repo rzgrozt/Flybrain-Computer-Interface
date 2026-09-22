@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/assets/style.css">
   <link rel="stylesheet" href="/assets/brain-view.css">
   <link rel="stylesheet" href="/assets/control-center.css">
+  <link rel="stylesheet" href="/assets/pathway.css">
 </head>
 <body>
   <header class="app-header">
@@ -108,7 +109,7 @@
         <div class="brain-legend">
           <span class="anatomy">Measured anatomy</span><span class="input">Stimulus</span>
           <span class="output">Selected output</span><span class="watch">Watchlist</span>
-          <span class="active">Simulated spikes</span>
+          <span class="pathway">Selected pathway anatomy</span><span class="active">Simulated spikes</span>
         </div>
         <p id="activityState" class="note">Idle · no activity supplied</p>
         <p id="activitySignal" class="note">Activity brightness represents binned, emitted simulated spikes, not voltage or fluorescence.</p>
@@ -155,16 +156,36 @@
     <section class="research-grid" aria-label="Neural diagnostics and episode exploration">
       <article class="card pathway-card" aria-labelledby="pathwayHeading">
         <div class="panel-heading">
-          <div><p class="kicker">04 / Connectivity</p><h2 id="pathwayHeading">Active Neural Pathways</h2></div>
+          <div><p class="kicker">04 / Connectivity</p><h2 id="pathwayHeading">Neural Pathway Inspector</h2></div>
           <span class="source-pill anatomy">ANATOMY ONLY</span>
         </div>
-        <p class="panel-subheading">Explore actual directed graph relationships from the current stimulus selection. Measured hop-level propagation arrives in the pathway integration increment.</p>
-        <div class="pathway-flow" aria-label="Pathway observation stages">
-          <span>Visual input</span><b>→</b><span>Relays</span><b>→</b><span>Descending neurons</span>
+        <p class="panel-subheading">Select an artifact-verified two- or three-hop route into a real descending neuron. Purple shows anatomy; amber shows observed simulated spikes, never inferred edge transmission.</p>
+        <div class="pathway-pickers">
+          <label for="pathwayTarget">Descending target<select id="pathwayTarget" disabled><option>Loading verified targets…</option></select></label>
+          <label for="pathwayRoute">Anatomical route<select id="pathwayRoute" disabled><option>Select a target</option></select></label>
         </div>
-        <p id="pathwayStatus" class="note">Select the visual pathway preset and reveal its bounded anatomical neighborhood in Brain View.</p>
-        <button id="pathwayExplore" type="button" class="secondary-action">Show selected anatomical connections ↗</button>
-        <p id="overlayState" class="note">Connection lines represent directed graph edges between measured somata, not physiological transmission.</p>
+        <div id="pathwayFlow" class="pathway-route" aria-label="Directed anatomical route"><p class="note">Loading pathway catalog…</p></div>
+        <p id="pathwayStatus" class="note" role="status">Loading verified connectome paths…</p>
+        <div class="pathway-actions">
+          <button id="pathwayExplore" type="button" class="secondary-action">Focus Brain View ↗</button>
+          <button id="pathwayObserve" type="button" class="secondary-action" disabled>Observe live / next run</button>
+          <button id="pathwayClear" type="button" class="secondary-action" disabled>Clear</button>
+        </div>
+        <p id="overlayState" class="note">Each line is a verified directed synaptic relationship, not a measured transmission event.</p>
+        <div class="pathway-measurement-heading"><strong>Selected route · live neural samples</strong><span class="source-pill unavailable" id="pathwayLiveSource">NOT OBSERVED</span></div>
+        <p id="pathwayMeasurementStatus" class="note" role="status">Select a route to observe up to four real neural indices.</p>
+        <div class="pathway-stat-grid">
+          <div><span>Mean voltage</span><strong id="pathwayMeanVoltage">—</strong></div>
+          <div><span>Mean synaptic drive</span><strong id="pathwayMeanDrive">—</strong></div>
+          <div><span>Population spikes / bin</span><strong id="pathwaySpikes">—</strong></div>
+        </div>
+        <div class="pathway-graphs">
+          <label>Mean voltage · mV<canvas id="pathwayVoltageTrace" aria-label="Bounded live mean voltage trace"></canvas></label>
+          <label>Mean synaptic drive · mV<canvas id="pathwayDriveTrace" aria-label="Bounded live synaptic drive trace"></canvas></label>
+          <label>Spike rate · Hz per neuron<canvas id="pathwaySpikeTrace" aria-label="Bounded live spike-rate trace"></canvas></label>
+        </div>
+        <div id="pathwayNeuronSamples" class="pathway-samples"><p class="note">No route-specific measured neural state yet.</p></div>
+        <p class="note">Voltage and drive are end-of-chunk simulator samples; spikes are counts from that chunk. There is no measured edge activation, timing between hops or causal attribution.</p>
       </article>
 
       <article class="card neural-card" aria-labelledby="neuralHeading">

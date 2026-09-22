@@ -1,0 +1,33 @@
+/* Bounded, anatomy-first route inspector. Independent of generic atlas neighborhood. */
+.pathway-pickers{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.pathway-pickers label{display:flex;flex-direction:column;gap:6px;font-size:11px;color:#a5b5c7}
+.pathway-pickers select{width:100%;min-width:0;background:#101e2a;color:#eff4fa;border:1px solid #3a5164;border-radius:7px;padding:9px;font:inherit}
+.pathway-pickers select:disabled{opacity:.55}
+.pathway-route{margin:16px 0 10px;display:flex;flex-wrap:wrap;align-items:stretch;gap:7px}
+.pathway-node{flex:1 1 110px;min-width:0;border:1px solid #6f63a1;border-radius:9px;background:#22233c;padding:10px 9px;display:flex;flex-direction:column;gap:5px}
+.pathway-node.target{border-color:#b596d8;background:#352a45}
+.pathway-node small{font:10px ui-monospace,monospace;color:#bbb0e4}
+.pathway-node strong{font-size:12px;color:#eee9ff;overflow-wrap:anywhere}
+.pathway-node span{font-size:10px;color:#a8bacc;overflow-wrap:anywhere}
+.pathway-edge{flex:0 0 52px;align-self:center;color:#a99eff;text-align:center;font:11px ui-monospace,monospace}
+.pathway-edge b{display:block;font-size:14px}
+.pathway-edge span{font-size:9px;color:#bdcbd7}
+.pathway-actions{display:flex;flex-wrap:wrap;gap:7px}
+.pathway-actions .secondary-action{margin:7px 0 10px}
+.pathway-actions button:disabled{opacity:.48;cursor:not-allowed}
+.pathway-measurement-heading{display:flex;gap:8px;align-items:center;justify-content:space-between;border-top:1px solid #304253;padding-top:15px;margin-top:17px}
+.pathway-measurement-heading strong{font-size:12px}
+.pathway-stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.pathway-stat-grid>div{border:1px solid #31475c;background:#121e2c;border-radius:8px;padding:10px;min-width:0}
+.pathway-stat-grid span{display:block;font-size:10px;color:#9eb0c4;margin-bottom:7px}
+.pathway-stat-grid strong{font:700 13px ui-monospace,monospace;color:#e9f2fa;overflow-wrap:anywhere}
+.pathway-graphs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:13px 0}
+.pathway-graphs label{display:flex;flex-direction:column;gap:6px;font-size:10px;color:#a9bacb}
+.pathway-graphs canvas{width:100%;height:55px;border-radius:7px;border:1px solid #2b4155;background:#0e1a27}
+.pathway-samples{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.pathway-sample{border:1px solid #40516a;border-radius:8px;padding:9px 10px;background:#152337;font-size:11px}
+.pathway-sample strong{display:block;color:#dddcff;margin-bottom:5px}
+.pathway-sample span{display:block;color:#bdd0db;line-height:1.7;font:10px ui-monospace,monospace}
+.pathway-card .source-pill.measured{color:#ffca8d;border-color:#b18b54}
+.brain-legend .pathway::before{background:#aa9eff}
+@media(max-width:720px){.pathway-pickers{grid-template-columns:1fr}.pathway-graphs{grid-template-columns:1fr}.pathway-graphs canvas{height:45px}}

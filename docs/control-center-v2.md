@@ -117,6 +117,54 @@ the runtime or recording provides those quantities.
 5. **Experiment orchestration:** distinguish simulation pause, guest pause and
    replay pause. Add bounded persisted event recording and synchronized scrubbing.
 
+## Verified pathway inspector and bounded observation (2026-09-22)
+
+The Connectivity card now calls the original read-only
+`GET /api/v2/pathways` and `GET /api/v2/pathways/{target_index}`
+endpoints. The installed, independently validated artifact exposes ten
+individual DNa02, DNg13, DNp09 and MDN descending targets. Selecting one
+of its at-most-twelve sampled, two- or three-hop routes maps **actual
+stable neuron indices** through `POST /api/anatomy/map`; violet route
+somata and edges have a separate overlay, independent of the generic
+anatomical-neighborhood renderer. Synapse counts label *anatomical*
+contacts, never signal transmission. Atlas exclusions are displayed, not
+silently relocated.
+
+The currently selected route is included as `pathway_observation:
+{target_neuron_index, path_index}` when a new protocol is started. While
+a worker is running or paused, selecting a different route or pressing
+**Observe live** sends `POST /api/v2/pathways/observe` with
+`{"observation":{"target_neuron_index":...,"path_index":...}}`; sending
+`{"observation":null}` stops observation. The backend resolves the
+identifiers *again* against the verified artifact and rejects arbitrary
+indices. Changes take effect at the next worker chunk boundary and do
+not modify neural state or restart the running experiment. A selection
+made while idle is armed for the next experiment, not silently
+presented as current activity.
+
+Only the selected route's **three or four verified neurons** are added
+to the existing bounded `watch_indices` and `visualization_indices`.
+The worker records end-of-chunk simulated membrane voltage and synaptic
+drive plus the number of emitted spikes *within that chunk* for each
+watched neuron. Original user-configured watchlist telemetry remains
+unchanged. Legacy `/ws/telemetry` carries a separate
+`pathway_measurement`; versioned `/ws/v2/telemetry` projects that
+measurement to `observed_pathway`. Both retain
+`pathway_activation: null` conceptually: observing the state of adjacent
+neurons is **not** proof that a particular synapse transmitted a signal,
+nor proof of a causal motor contribution.
+
+The browser retains at most **60 sampled frames** for the selected
+route, with per-neuron latest values, mean voltage and drive, per-bin
+population spikes, and separate short voltage/drive/firing-rate graphs.
+It resets on route or experiment change and does not connect lines
+across dropped sample chunks. A missing, paused, disconnected or
+previously recorded source is explicitly labeled. The UI ring buffer
+is transient and is **not** a persistent per-neuron trace archive.
+Historical two-axis virtual-cursor artifacts still have no such traces,
+and the QEMU guest remains disconnected. These measurements are of the
+current isolated sparse-LIF simulation only.
+
 ## Acceptance and nonclaims
 
 Panel launch and historical experiment endpoints keep working. The prominent

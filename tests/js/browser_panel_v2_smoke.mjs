@@ -93,6 +93,48 @@ try {
   await evaluate("document.getElementById('modeReplay').click()");
   const replay = await evaluate("document.getElementById('sandboxSource').textContent");
   assert.equal(replay, 'RECORDED CURSOR · NOT A VM');
+  // Inspect verified routes (not a synthetic graph) and live observation presentation.
+  let routeReady = false;
+  for (let i = 0; i < 100; i++) {
+    routeReady = await evaluate("Boolean(window.flybrainSelectedPathway && window.flybrainPathwayOverlay?.nodes.length)");
+    if (routeReady) break;
+    await sleep(100);
+  }
+  assert.ok(routeReady, 'Verified pathway/atlas mapping did not initialize');
+  const initialRoute = await evaluate("({selection:window.flybrainSelectedPathway,overlay:window.flybrainPathwayOverlay,targets:document.getElementById('pathwayTarget').options.length})");
+  assert.ok(initialRoute.targets >= 11, 'Catalog must expose ten actual DN instances');
+  assert.ok([3,4].includes(initialRoute.selection.neuron_indices.length));
+  assert.equal(initialRoute.overlay.edges.length, initialRoute.selection.neuron_indices.length - 1);
+
+  // DNp09_L is the catalog's two-hop route. Selection should update the graph.
+  await evaluate("(() => {const picker=document.getElementById('pathwayTarget');picker.value=[...picker.options].find(x=>x.text.startsWith('DNp09_L'))?.value;picker.dispatchEvent(new Event('change'));})()");
+  let twoHop = false;
+  for (let i = 0; i < 100; i++) {
+    twoHop = await evaluate("window.flybrainSelectedPathway?.neuron_indices.length===3 && window.flybrainPathwayOverlay?.edges.length===2");
+    if (twoHop) break;
+    await sleep(100);
+  }
+  assert.ok(twoHop, 'DNp09_L did not select a verified two-hop route');
+  const highlighted = await evaluate("({status:document.getElementById('pathwayStatus').textContent,nodeCount:document.querySelectorAll('#pathwayFlow .pathway-node').length,mapped:window.flybrainPathwayOverlay.nodes.length,edges:window.flybrainPathwayOverlay.edges.length,targetVisible:window.flybrainPathwayOverlay.nodes.at(-1).visible_soma})");
+  assert.match(highlighted.status, /DNp09_L/);
+  assert.equal(highlighted.nodeCount, 3);
+  assert.equal(highlighted.edges, 2);
+  assert.equal(highlighted.targetVisible, true);
+
+  // Clearly synthetic browser-only fixture: the production worker never fabricates this.
+  await evaluate("(() => {const s=window.flybrainSelectedPathway;const n=s.neuron_indices.length;window.dispatchEvent(new CustomEvent('flybrain:live-neural-sample',{detail:{kind:'telemetry',status:'running',experiment_id:'synthetic-browser-pathway',chunks:9,pathway_measurement:{source:'simulated_neural_measurement',target_neuron_index:s.target_neuron_index,path_index:s.path_index,neuron_indices:s.neuron_indices,sampled_chunk:9,simulated_time_s:.18,bin_duration_s:.02,voltage_mv:Array(n).fill(-57),synaptic_drive_mv:Array(n).fill(.004),spike_counts:Array(n).fill(0)}}}));})()");
+  const measured = await evaluate("({source:document.getElementById('pathwayLiveSource').textContent,voltage:document.getElementById('pathwayMeanVoltage').textContent,drive:document.getElementById('pathwayMeanDrive').textContent,spikes:document.getElementById('pathwaySpikes').textContent,tiles:document.querySelectorAll('#pathwayNeuronSamples .pathway-sample').length})");
+  assert.equal(measured.source, 'LAST SIMULATED SAMPLE');
+  assert.equal(measured.voltage, '-57.000 mV');
+  assert.equal(measured.drive, '0.004 mV');
+  assert.equal(measured.spikes, '0', 'Measured zero spikes must not become missing data');
+  assert.equal(measured.tiles, 3);
+  await evaluate("document.getElementById('pathwayClear').click()");
+  const cleared = await evaluate("({selection:window.flybrainSelectedPathway,overlay:window.flybrainPathwayOverlay,voltage:document.getElementById('pathwayMeanVoltage').textContent})");
+  assert.equal(cleared.selection, null);
+  assert.equal(cleared.overlay, null);
+  assert.equal(cleared.voltage, '—');
+
   const screenshot = await send('Page.captureScreenshot', {format: 'png', captureBeyondViewport: false});
   await writeFile('/tmp/flybrain-panel-v2-inspection.png', Buffer.from(screenshot.data, 'base64'));
   // WebGL warnings from unsupported headless GPU are not a JavaScript crash.

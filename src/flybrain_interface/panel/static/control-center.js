@@ -1,5 +1,6 @@
 import {clampNormalized, replayDirection, scoreRows, selectRecordedStep} from './replay-state.mjs';
 import {appendNeuralSample} from './live-timeline.mjs';
+import {initPathwayInspector} from './pathway-ui.mjs';
 
 const $ = id => document.getElementById(id);
 const state = {recording: null, recordingId: null, episode: 0, step: 0, mode: 'guest', playing: false, timer: null, liveSamples: []};
@@ -324,12 +325,7 @@ $('openProtocol').onclick = () => {
 $('protocol').addEventListener('toggle', event => {
   $('openProtocol').setAttribute('aria-expanded', String(event.target.open));
 });
-$('pathwayExplore').onclick = () => {
-  const overlay = $('overlay');
-  if (overlay.dataset.active !== 'true') overlay.click();
-  $('pathwayStatus').textContent = 'Current selection is mapped onto the actual connectome neighborhood; pathway contribution is not inferred.';
-  $('brainViewport').scrollIntoView({behavior:'smooth',block:'center'});
-};
+initPathwayInspector();
 addEventListener('resize', () => {if (state.mode === 'replay') render();});
 document.addEventListener('visibilitychange', () => {if (document.hidden) stopPlayback();});
 window.addEventListener('flybrain:live-neural-sample', event => {
