@@ -85,6 +85,11 @@ try {
   assert.equal(guest.motor, 'NO LIVE MOTOR FEED');
   assert.equal(guest.timeline, 'NO LIVE EPISODE FEED');
   assert.equal(guest.empty, false);
+  // Test the presentation boundary with a clearly synthetic browser fixture.
+  await evaluate("window.dispatchEvent(new CustomEvent('flybrain:live-neural-sample',{detail:{kind:'telemetry',experiment_id:'browser-fixture',chunks:3,simulated_time_s:0.06,chunk_spikes:19,status:'running'}}))");
+  const live = await evaluate("({source:document.getElementById('timelineSource').textContent,event:document.getElementById('episodeTimeline').textContent})");
+  assert.equal(live.source, 'LIVE NEURAL SAMPLES');
+  assert.match(live.event, /19 simulated spikes/);
   await evaluate("document.getElementById('modeReplay').click()");
   const replay = await evaluate("document.getElementById('sandboxSource').textContent");
   assert.equal(replay, 'RECORDED CURSOR · NOT A VM');
@@ -96,5 +101,11 @@ try {
 } finally {
   if (socket) socket.close();
   chrome.kill('SIGTERM');
-  await rm(directory, {recursive:true, force:true});
+  if (chrome.exitCode === null) {
+    await Promise.race([
+      new Promise(resolve => chrome.once('exit', resolve)),
+      sleep(2500).then(() => chrome.kill('SIGKILL')),
+    ]);
+  }
+  await rm(directory, {recursive:true, force:true, maxRetries: 5, retryDelay: 150});
 }
