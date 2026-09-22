@@ -99,7 +99,7 @@ def _edge_group_summary(
         elif edge.sign < 0:
             cat["inhibitory_contacts"] += contacts
 
-    type_rows = [
+    type_rows: list[dict[str, int | str]] = [
         {
             "type": type_name,
             **{
