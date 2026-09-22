@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-broad-dn-pca-regression-v1",
+  "source_artifact": "artifacts/spatial-motor-broad-descending-state-v1.json",
+  "axis": "horizontal",
+  "center_position": 0.5,
+  "train_positions": [0.10, 0.2333, 0.3667, 0.4667, 0.50, 0.5333, 0.6333, 0.7667, 0.90],
+  "test_positions": [0.1667, 0.30, 0.4333, 0.5667, 0.70, 0.8333],
+  "modalities": ["spike", "temporal_voltage", "temporal_drive", "temporal_concat"],
+  "pca_components_grid": [1, 2, 3, 4, 5, 6],
+  "alpha_grid": [0.001, 0.01, 0.1, 1.0, 10.0],
+  "standardization_epsilon": 1e-9,
+  "gates": {
+    "maximum_test_mae": 0.12,
+    "minimum_side_accuracy": 0.8333333333333334
+  }
+}
