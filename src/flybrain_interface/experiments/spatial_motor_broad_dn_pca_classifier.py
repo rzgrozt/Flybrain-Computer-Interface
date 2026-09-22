@@ -102,7 +102,7 @@ def _apply_standardizer(
     mean: np.ndarray,
     scale: np.ndarray,
 ) -> np.ndarray:
-    return (features - mean) / scale
+    return np.asarray((features - mean) / scale, dtype=np.float64)
 
 
 def _fit_pca(
@@ -126,7 +126,7 @@ def _apply_pca(
     mean: np.ndarray,
     basis: np.ndarray,
 ) -> np.ndarray:
-    return (features - mean) @ basis
+    return np.asarray((features - mean) @ basis, dtype=np.float64)
 
 
 def _one_hot(labels: np.ndarray) -> np.ndarray:
@@ -152,7 +152,7 @@ def _fit_ridge_classifier(
 
 def _scores(weights: np.ndarray, features: np.ndarray) -> np.ndarray:
     design = np.column_stack((np.ones(features.shape[0]), features))
-    return design @ weights
+    return np.asarray(design @ weights, dtype=np.float64)
 
 
 def _fit_pipeline(
