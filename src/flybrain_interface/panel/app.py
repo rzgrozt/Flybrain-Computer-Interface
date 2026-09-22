@@ -24,6 +24,11 @@ from flybrain_interface.panel.models import (
     ExperimentConfig,
     NeighborhoodRequest,
 )
+from flybrain_interface.panel.recordings import (
+    RECORDINGS,
+    cached_recording,
+    recording_catalog,
+)
 
 STATIC_DIRECTORY = Path(__file__).with_name("static")
 
@@ -110,6 +115,39 @@ def create_app(
     async def status() -> dict[str, Any]:
         controller.poll_latest()
         return controller.latest
+
+    @app.get("/api/v2/sandbox/status")
+    async def sandbox_status() -> dict[str, Any]:
+        """Honest status until a local QEMU display adapter is configured."""
+        return {
+            "schema_version": 2,
+            "kind": "sandbox_status",
+            "connection": "not_configured",
+            "backend": None,
+            "vm_frame_available": False,
+            "guest_pointer_available": False,
+            "guest_actions_enabled": False,
+            "host_pointer_control": False,
+            "fallback": "recorded_virtual_cursor",
+            "fallback_available": any(
+                item["available"] for item in recording_catalog()["recordings"]
+            ),
+        }
+
+    @app.get("/api/v2/recordings")
+    async def recordings() -> dict[str, Any]:
+        return recording_catalog()
+
+    @app.get("/api/v2/recordings/{recording_id}")
+    async def recorded_experiment(recording_id: str) -> dict[str, Any]:
+        if recording_id not in RECORDINGS:
+            raise HTTPException(404, "unknown recording")
+        try:
+            return await asyncio.to_thread(cached_recording, recording_id)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise HTTPException(
+                503, "recorded artifact unavailable or invalid"
+            ) from error
 
     @app.get("/api/computer-use/capabilities")
     async def computer_use_capabilities() -> dict[str, Any]:
