@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-broad-dn-dense-direction-v1",
+  "training_artifact": "artifacts/spatial-motor-broad-descending-state-v1.json",
+  "validation_artifact": "artifacts/spatial-motor-broad-descending-midpoint-validation-v1.json",
+  "axis": "horizontal",
+  "center_position": 0.5,
+  "train_positions": [0.10, 0.1667, 0.2333, 0.30, 0.3667, 0.4333, 0.4667, 0.5333, 0.5667, 0.6333, 0.70, 0.7667, 0.8333, 0.90],
+  "validation_positions": [0.1333, 0.20, 0.2667, 0.3333, 0.6667, 0.7333, 0.80, 0.8667],
+  "modalities": ["spike", "temporal_voltage", "temporal_drive", "temporal_concat"],
+  "pca_components_grid": [2, 3, 4, 5, 6, 7, 8],
+  "alpha_grid": [0.001, 0.01, 0.1, 1.0, 10.0],
+  "standardization_epsilon": 1e-9,
+  "gates": {
+    "minimum_validation_accuracy": 0.875
+  }
+}
