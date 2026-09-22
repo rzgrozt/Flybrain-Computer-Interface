@@ -29,6 +29,7 @@ from flybrain_interface.panel.recordings import (
     cached_recording,
     recording_catalog,
 )
+from flybrain_interface.panel.telemetry_v2 import project_telemetry
 
 STATIC_DIRECTORY = Path(__file__).with_name("static")
 
@@ -115,6 +116,11 @@ def create_app(
     async def status() -> dict[str, Any]:
         controller.poll_latest()
         return controller.latest
+
+    @app.get("/api/v2/status")
+    async def status_v2() -> dict[str, Any]:
+        controller.poll_latest()
+        return project_telemetry(controller.latest)
 
     @app.get("/api/v2/sandbox/status")
     async def sandbox_status() -> dict[str, Any]:
@@ -248,6 +254,24 @@ def create_app(
                 except TimeoutError:
                     payload = {**controller.latest, "kind": "heartbeat"}
                 await websocket.send_json(payload)
+        except (WebSocketDisconnect, RuntimeError):
+            pass
+        finally:
+            hub.unsubscribe(target)
+
+    @app.websocket("/ws/v2/telemetry")
+    async def websocket_telemetry_v2(websocket: WebSocket) -> None:
+        """Independent one-slot observer for versioned, bounded neural events."""
+        await websocket.accept()
+        target = hub.subscribe()
+        try:
+            await websocket.send_json(project_telemetry(controller.latest))
+            while True:
+                try:
+                    payload = await asyncio.wait_for(target.get(), timeout=0.5)
+                except TimeoutError:
+                    payload = {**controller.latest, "kind": "heartbeat"}
+                await websocket.send_json(project_telemetry(payload))
         except (WebSocketDisconnect, RuntimeError):
             pass
         finally:
