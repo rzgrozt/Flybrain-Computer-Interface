@@ -48,6 +48,19 @@ class PopulationConfig(BaseModel):
         return values
 
 
+class PathwayObservationConfig(BaseModel):
+    """Select one artifact-verified route without accepting fabricated samples."""
+
+    model_config = ConfigDict(extra="forbid")
+    target_neuron_index: int = Field(ge=0, lt=166700)
+    path_index: int = Field(ge=0, lt=12)
+
+
+class PathwayObserveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    observation: PathwayObservationConfig | None
+
+
 class ExperimentConfig(BaseModel):
     """Bounded configuration accepted by the isolated simulation worker."""
 
@@ -59,6 +72,7 @@ class ExperimentConfig(BaseModel):
     chunk_duration_s: float = Field(default=0.02, ge=0.001, le=0.25)
     telemetry_hz: float = Field(default=10.0, ge=1.0, le=30.0)
     watch_indices: list[int] = Field(default_factory=lambda: [0], max_length=32)
+    pathway_observation: PathwayObservationConfig | None = None
     visualization_indices: list[int] = Field(
         default_factory=lambda: [0], max_length=4096
     )

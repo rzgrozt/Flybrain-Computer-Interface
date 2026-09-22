@@ -98,3 +98,62 @@ def test_latest_telemetry_replaces_slow_consumer_frame() -> None:
     event = sink.get_nowait()
     assert event["sequence"] == 2
     assert event["ipc_telemetry_dropped_total"] == 1
+
+
+def test_dynamic_pathway_observation_records_only_watched_neurons(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import flybrain_interface.panel.worker as worker
+
+    session = make_session(tmp_path)
+    routes = {
+        2: [0, 1, 2],
+        3: [1, 2, 3],
+    }
+
+    def fake_resolve(config):
+        indices = routes[config.target_neuron_index]
+        return {
+            "target_neuron_index": config.target_neuron_index,
+            "path_index": 0,
+            "neuron_indices": indices,
+            "body_ids": [str(index) for index in indices],
+            "hop_count": 2,
+            "source": "verified_connectome_anatomy",
+        }
+
+    monkeypatch.setattr(worker, "resolve_observation", fake_resolve)
+    session.configure_pathway({"target_neuron_index": 2, "path_index": 0})
+    assert session.snapshot("selected")["pathway_measurement"] is None
+    session.advance()
+    frame = session.snapshot("sample")
+    sample = frame["pathway_measurement"]
+    assert frame["pathway_selection"]["neuron_indices"] == [0, 1, 2]
+    assert sample["source"] == "simulated_neural_measurement"
+    assert sample["sampled_chunk"] == 1
+    assert sample["simulated_time_s"] == 0.02
+    assert sample["bin_duration_s"] == 0.02
+    assert len(sample["voltage_mv"]) == len(sample["synaptic_drive_mv"]) == 3
+    assert len(sample["spike_counts"]) == 3
+    assert all(value >= 0 for value in sample["spike_counts"])
+    assert sample["population_spikes"] == sum(sample["spike_counts"])
+    assert len(frame["watch_indices"]) == len(frame["voltage_mv"]) == 1
+
+    # Old traces must not masquerade as measurements for a newly selected route.
+    session.configure_pathway(
+        {
+            "target_neuron_index": 3,
+            "path_index": 0,
+            "neuron_indices": [999],
+            "body_ids": ["wrong"],
+            "source": "verified_connectome_anatomy",
+        }
+    )
+    assert session.snapshot("changed")["pathway_measurement"] is None
+    session.advance()
+    replaced = session.snapshot("sample")["pathway_measurement"]
+    assert replaced["neuron_indices"] == [1, 2, 3]
+    assert replaced["sampled_chunk"] == 2
+    session.configure_pathway(None)
+    assert session.snapshot("cleared")["pathway_measurement"] is None
+    assert session.snapshot("cleared")["pathway_selection"] is None

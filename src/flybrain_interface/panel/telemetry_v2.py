@@ -39,6 +39,8 @@ def project_telemetry(
             "spike_times_s": None,
         },
         "motor": None,
+        "observed_pathway": payload.get("pathway_measurement") if measured else None,
+        "pathway_selection": payload.get("pathway_selection"),
         "pathway_activation": None,
         "reward": None,
         "sandbox": None,

@@ -48,6 +48,7 @@ def pathway_catalog() -> dict[str, Any]:
         "available": True,
         "artifact_name": PATHWAY_ARTIFACT.name,
         "telemetry_available": False,
+        "live_observation_supported": True,
         "causal_contribution_available": False,
         "targets": [
             {

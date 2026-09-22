@@ -43,6 +43,7 @@ def test_project_measured_worker_frame_preserves_clocks_and_unknowns() -> None:
     assert result["selected_neurons"]["spike_times_s"] is None
     assert result["motor"] is None
     assert result["pathway_activation"] is None
+    assert result["observed_pathway"] is None
     assert result["reward"] is None
     assert result["sandbox"] is None
     assert result["runtime"]["browser_frames_dropped"] == 2
@@ -63,17 +64,48 @@ def test_idle_or_heartbeat_is_not_presented_as_measured_activity() -> None:
     assert heartbeat["activity"]["chunk_spikes"] is None
 
 
+def test_pathway_projection_requires_real_simulated_measurement() -> None:
+    sample = {
+        "source": "simulated_neural_measurement",
+        "target_neuron_index": 725,
+        "path_index": 0,
+        "neuron_indices": [1, 2, 725],
+        "voltage_mv": [-55.0, -54.0, -53.0],
+        "synaptic_drive_mv": [0.001, 0.002, 0.003],
+        "spike_counts": [0, 1, 0],
+        "sampled_chunk": 2,
+        "bin_duration_s": 0.02,
+    }
+    selected = {"target_neuron_index": 725, "path_index": 0}
+    measured = project_telemetry(
+        {
+            "kind": "telemetry",
+            "chunks": 2,
+            "pathway_measurement": sample,
+            "pathway_selection": selected,
+        }
+    )
+    assert measured["observed_pathway"] == sample
+    assert measured["pathway_selection"] == selected
+    assert measured["pathway_activation"] is None
+    nonmeasurement = project_telemetry(
+        {
+            "kind": "heartbeat",
+            "pathway_measurement": sample,
+            "pathway_selection": selected,
+        }
+    )
+    assert nonmeasurement["observed_pathway"] is None
+    assert nonmeasurement["pathway_activation"] is None
+
+
 def test_v2_routes_preserve_legacy_websocket(tmp_path: Path) -> None:
     app = create_app(tmp_path, tmp_path / "outputs")
     routes = {
-        item.path: item.endpoint
-        for item in app.routes
-        if isinstance(item, APIRoute)
+        item.path: item.endpoint for item in app.routes if isinstance(item, APIRoute)
     }
     websocket_routes = {
-        item.path
-        for item in app.routes
-        if isinstance(item, APIWebSocketRoute)
+        item.path for item in app.routes if isinstance(item, APIWebSocketRoute)
     }
     assert "/ws/telemetry" in websocket_routes
     assert "/ws/v2/telemetry" in websocket_routes

@@ -21,7 +21,8 @@ import psutil
 
 from flybrain_interface.connectome_data.runtime import MemoryMappedConnectome
 from flybrain_interface.panel.anatomy import ATLAS_DIRECTORY, AtlasJoin
-from flybrain_interface.panel.models import ExperimentConfig
+from flybrain_interface.panel.models import ExperimentConfig, PathwayObservationConfig
+from flybrain_interface.panel.pathway_observation import resolve_observation
 from flybrain_interface.sensory.spikes import DeterministicSpikeInput
 from flybrain_interface.simulation.config import ShiuLIFConfig
 from flybrain_interface.simulation.runtime import SparseLIFSimulator
@@ -136,6 +137,17 @@ def worker_main(
                     {"kind": "status", "status": "idle", "reason": "reset"},
                     dropped_total,
                 )
+            elif action == "observe_pathway":
+                if session is None or session.status not in {"running", "paused"}:
+                    raise ValueError(
+                        "pathway observation requires an active simulation"
+                    )
+                session.configure_pathway(command.get("observation"))
+                dropped_total = publish_latest(
+                    telemetry,
+                    session.snapshot("pathway_selection_changed"),
+                    dropped_total,
+                )
             elif action == "advance":
                 assert session is not None
                 session.advance()
@@ -206,6 +218,10 @@ class WorkerSession:
         self.chunks = 0
         self.loop_seconds = 0.0
         self.last_activity_frame = _empty_activity_frame(config.chunk_duration_s)
+        self.pathway_selection: dict[str, Any] | None = None
+        self.last_pathway_measurement: dict[str, Any] | None = None
+        if config.pathway_observation is not None:
+            self.configure_pathway(config.pathway_observation.model_dump())
 
     @classmethod
     def create(
@@ -243,6 +259,21 @@ class WorkerSession:
         session.write_manifest("running")
         return session
 
+    def configure_pathway(self, observation: dict[str, Any] | None) -> None:
+        """Change only the bounded trace watchlist at a chunk boundary."""
+        # API commands carry server-resolved metadata; re-derive from their two
+        # authoritative identifiers rather than trusting echoed index arrays.
+        request = (
+            PathwayObservationConfig.model_validate(
+                {key: observation[key] for key in ("target_neuron_index", "path_index")}
+            )
+            if observation is not None
+            else None
+        )
+        selection = resolve_observation(request) if request is not None else None
+        self.pathway_selection = selection
+        self.last_pathway_measurement = None
+
     def advance(self) -> None:
         remaining = self.config.duration_s - self.simulator.current_time_s
         if remaining <= 1e-12:
@@ -254,12 +285,19 @@ class WorkerSession:
         chunk_s = max(dt_s, round(chunk_s / dt_s) * dt_s)
         stimulus = self._chunk_stimulus(chunk_s)
         started = time.perf_counter()
+        route_indices = (
+            self.pathway_selection["neuron_indices"] if self.pathway_selection else []
+        )
+        watched = tuple(dict.fromkeys([*self.config.watch_indices, *route_indices]))
+        visualized = list(
+            dict.fromkeys([*self.config.visualization_indices, *route_indices])
+        )
         result = self.simulator.advance_chunk(
             stimulus,
             duration_s=chunk_s,
             recording=ChunkRecording(
-                watched_indices=tuple(self.config.watch_indices),
-                include_neuron_counts=bool(self.config.visualization_indices),
+                watched_indices=watched,
+                include_neuron_counts=bool(visualized),
                 max_spike_events=0,
             ),
         )
@@ -269,14 +307,43 @@ class WorkerSession:
         self.total_spikes += result.total_spikes
         self.last_rates = result.population_rates_hz
         self.last_activity_frame = build_activity_frame(
-            self.config.visualization_indices,
+            visualized,
             result.neuron_spike_counts,
             result.duration_s,
             self.atlas_join,
         )
         if result.voltage_mv.size:
-            self.last_voltage = result.voltage_mv[-1].tolist()
-            self.last_drive = result.synaptic_drive_mv[-1].tolist()
+            # Preserve the legacy watchlist contract; extra route traces are separate.
+            self.last_voltage = result.voltage_mv[
+                -1, : len(self.config.watch_indices)
+            ].tolist()
+            self.last_drive = result.synaptic_drive_mv[
+                -1, : len(self.config.watch_indices)
+            ].tolist()
+        self.last_pathway_measurement = None
+        if self.pathway_selection is not None and result.voltage_mv.size:
+            columns = [watched.index(index) for index in route_indices]
+            voltages = [float(result.voltage_mv[-1, column]) for column in columns]
+            drives = [float(result.synaptic_drive_mv[-1, column]) for column in columns]
+            counts = result.neuron_spike_counts
+            spikes = (
+                [int(counts[index]) for index in route_indices]
+                if counts is not None
+                else None
+            )
+            self.last_pathway_measurement = {
+                **self.pathway_selection,
+                "source": "simulated_neural_measurement",
+                "sampled_chunk": self.chunks,
+                "simulated_time_s": self.simulator.current_time_s,
+                "bin_duration_s": result.duration_s,
+                "voltage_mv": voltages,
+                "synaptic_drive_mv": drives,
+                "spike_counts": spikes,
+                "population_voltage_mean_mv": float(np.mean(voltages)),
+                "population_drive_mean_mv": float(np.mean(drives)),
+                "population_spikes": sum(spikes) if spikes is not None else None,
+            }
         if self.simulator.current_time_s + 1e-12 >= self.config.duration_s:
             self.status = "completed"
 
@@ -356,6 +423,8 @@ class WorkerSession:
             "visited_edges": self.simulator.visited_edges,
             "subnormal_drive_policy": self.config.subnormal_drive_policy,
             "brain_activity": self.last_activity_frame,
+            "pathway_selection": self.pathway_selection,
+            "pathway_measurement": self.last_pathway_measurement,
         }
 
     def finish(self, status: str, *, error: str | None = None) -> None:
@@ -528,9 +597,7 @@ def build_activity_frame(
             without_visible_soma += 1
             continue
         rate_hz = spike_count / bin_duration_s
-        values.append(
-            [neuron_index, body_id, min(1.0, rate_hz / 50.0), spike_count]
-        )
+        values.append([neuron_index, body_id, min(1.0, rate_hz / 50.0), spike_count])
     frame["values"] = values
     frame["active_selected_count"] = int(active.size)
     frame["active_without_visible_soma_count"] = without_visible_soma

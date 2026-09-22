@@ -46,9 +46,7 @@ class PanelController:
         process.start()
         self.latest = {"kind": "status", "status": "idle"}
 
-    def command(
-        self, action: str, config: ExperimentConfig | None = None
-    ) -> bool:
+    def command(self, action: str, config: ExperimentConfig | None = None) -> bool:
         recovered = False
         if self._process is None or not self._process.is_alive():
             if action not in {"start", "reset"}:
@@ -82,6 +80,17 @@ class PanelController:
                 "status": transitional[action],
             }
         return recovered
+
+    def observe_pathway(self, observation: dict[str, Any] | None) -> None:
+        """Queue a server-resolved, bounded observation; no numerical state mutation."""
+        if self._process is None or not self._process.is_alive():
+            raise RuntimeError("simulation worker is not running")
+        try:
+            self._commands.put_nowait(
+                {"action": "observe_pathway", "observation": observation}
+            )
+        except queue.Full as error:
+            raise RuntimeError("worker command channel is full") from error
 
     def poll_latest(self) -> dict[str, Any] | None:
         if self._process is not None and not self._process.is_alive():

@@ -23,7 +23,9 @@ from flybrain_interface.panel.models import (
     AnatomyMapRequest,
     ExperimentConfig,
     NeighborhoodRequest,
+    PathwayObserveRequest,
 )
+from flybrain_interface.panel.pathway_observation import resolve_observation
 from flybrain_interface.panel.pathways_v2 import pathway_catalog, target_paths
 from flybrain_interface.panel.recordings import (
     RECORDINGS,
@@ -81,9 +83,7 @@ def create_app(
         if anatomy is None:
             with anatomy_lock:
                 if anatomy is None:
-                    anatomy = AtlasJoin.load(
-                        ATLAS_DIRECTORY, controller.data_directory
-                    )
+                    anatomy = AtlasJoin.load(ATLAS_DIRECTORY, controller.data_directory)
         return anatomy
 
     @asynccontextmanager
@@ -159,6 +159,36 @@ def create_app(
         if result is None:
             raise HTTPException(404, "unknown anatomical target")
         return result
+
+    @app.post(
+        "/api/v2/pathways/observe", response_model=ActionResponse, status_code=202
+    )
+    async def observe_pathway(request: PathwayObserveRequest) -> ActionResponse:
+        """Attach a validated route to the active neural worker at its next chunk."""
+        current = str(controller.latest.get("status", "idle"))
+        if current not in {"starting", "running", "pausing", "paused", "resuming"}:
+            raise HTTPException(
+                409, "start a live simulation before observing a pathway"
+            )
+        try:
+            selection = (
+                await asyncio.to_thread(resolve_observation, request.observation)
+                if request.observation is not None
+                else None
+            )
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
+        except (OSError, KeyError, TypeError) as error:
+            raise HTTPException(503, "anatomical pathways unavailable") from error
+        try:
+            controller.observe_pathway(selection)
+        except RuntimeError as error:
+            raise HTTPException(503, str(error)) from error
+        return ActionResponse(
+            accepted=True,
+            status=current,
+            detail="observation queued; measurements start at the next simulated chunk",
+        )
 
     @app.get("/api/v2/recordings")
     async def recordings() -> dict[str, Any]:
