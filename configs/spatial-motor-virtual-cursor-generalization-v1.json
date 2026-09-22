@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-virtual-cursor-generalization-v1",
+  "broad_state_config": "configs/spatial-motor-broad-descending-state-v1.json",
+  "classifier_config": "configs/spatial-motor-broad-dn-binary-direction-v1.json",
+  "classifier_artifact": "artifacts/spatial-motor-broad-dn-binary-direction-v1.json",
+  "training_state_artifact": "artifacts/spatial-motor-broad-descending-state-v1.json",
+  "episodes": [
+    {"start_x": 0.50, "target_x": 0.14},
+    {"start_x": 0.50, "target_x": 0.86},
+    {"start_x": 0.25, "target_x": 0.58},
+    {"start_x": 0.75, "target_x": 0.42}
+  ],
+  "cursor": {
+    "step_scale": 0.0667,
+    "success_tolerance": 0.07,
+    "max_steps": 8,
+    "reversal_margin_threshold": 0.15
+  },
+  "relative_visualization": {
+    "center": 0.5,
+    "minimum": 0.10,
+    "maximum": 0.90
+  },
+  "gates": {
+    "minimum_episode_success_fraction": 1.0,
+    "require_mean_distance_reduction": true
+  }
+}
