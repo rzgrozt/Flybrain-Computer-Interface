@@ -142,6 +142,9 @@ class SparseLIFSimulator:
     def prepare(self) -> None:
         """Compile/load the selected backend without advancing persistent state."""
 
+        prepare_accumulation = getattr(self.connectivity, "prepare_accumulation", None)
+        if callable(prepare_accumulation):
+            prepare_accumulation()
         if self.backend == "numba":
             self._advance_state_numba()
             self.reset()

@@ -47,6 +47,18 @@ def test_memory_mapped_graph_selects_and_propagates(tmp_path: Path) -> None:
     scaled_result = np.zeros(3, dtype=np.float64)
     graph.accumulate_spikes([0], scaled_result, amplitudes=0.5)
     assert scaled_result.tolist() == [0.0, 2.0, 1.0]
+    weighted_result = np.zeros(3, dtype=np.float64)
+    visited_weighted = graph.accumulate_spikes(
+        [0, 1],
+        weighted_result,
+        amplitudes=np.asarray([0.5, 0.25], dtype=np.float64),
+    )
+    assert visited_weighted == 3
+    np.testing.assert_allclose(weighted_result, [0.0, 2.0, 0.25])
+    np.testing.assert_allclose(
+        weighted_result,
+        graph.propagate([0.5, 0.25, 0.0]),
+    )
     projection = graph.project_sources([0, 1])
     assert projection.source_count == 2
     assert projection.anatomical_edge_count == 3

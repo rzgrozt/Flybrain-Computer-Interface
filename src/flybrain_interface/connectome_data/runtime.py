@@ -12,6 +12,7 @@ import numpy.typing as npt
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as parquet
+from numba import njit
 from scipy.sparse import csr_matrix
 
 IntArray = npt.NDArray[np.int64]
@@ -19,6 +20,34 @@ IndexArray = npt.NDArray[np.int32]
 CountArray = npt.NDArray[np.int32]
 SignArray = npt.NDArray[np.int8]
 FloatArray = npt.NDArray[np.float64]
+
+@njit(cache=True, fastmath=False, nogil=True)
+def _accumulate_signed_sources_numba(
+    sources: IntArray,
+    amplitudes: FloatArray,
+    signs: SignArray,
+    outgoing_indptr: npt.NDArray[np.int64],
+    target_indices: IndexArray,
+    synapse_counts: CountArray,
+    destination: FloatArray,
+) -> int:
+    """Accumulate signed outgoing contacts while preserving source/edge order."""
+
+    visited_edges = 0
+    for event_index in range(sources.size):
+        source = int(sources[event_index])
+        amplitude = amplitudes[event_index]
+        sign = int(signs[source])
+        if sign == 0 or amplitude == 0.0:
+            continue
+        start = int(outgoing_indptr[source])
+        stop = int(outgoing_indptr[source + 1])
+        scale = sign * amplitude
+        for edge_index in range(start, stop):
+            target = int(target_indices[edge_index])
+            destination[target] += synapse_counts[edge_index] * scale
+        visited_edges += stop - start
+    return visited_edges
 
 
 @dataclass(frozen=True, slots=True)
@@ -321,18 +350,31 @@ class MemoryMappedConnectome:
             if not np.isfinite(event_amplitudes).all():
                 raise ValueError("amplitudes must be finite")
 
-        visited_edges = 0
-        for source, amplitude in zip(spikes, event_amplitudes, strict=True):
-            sign = int(self.presynaptic_signs[source])
-            if sign == 0 or amplitude == 0.0:
-                continue
-            start = int(self.outgoing_indptr[source])
-            stop = int(self.outgoing_indptr[source + 1])
-            targets = self.target_indices[start:stop]
-            counts = self.outgoing_synapse_counts[start:stop]
-            destination[targets] += counts * (sign * amplitude)
-            visited_edges += stop - start
-        return visited_edges
+        return int(
+            _accumulate_signed_sources_numba(
+                spikes,
+                np.asarray(event_amplitudes, dtype=np.float64),
+                self.presynaptic_signs,
+                self.outgoing_indptr,
+                self.target_indices,
+                self.outgoing_synapse_counts,
+                destination,
+            )
+        )
+
+    def prepare_accumulation(self) -> None:
+        """Compile/load the sparse accumulation kernel without mutating graph state."""
+
+        destination = np.zeros(self.neuron_count, dtype=np.float64)
+        _accumulate_signed_sources_numba(
+            np.empty(0, dtype=np.int64),
+            np.empty(0, dtype=np.float64),
+            self.presynaptic_signs,
+            self.outgoing_indptr,
+            self.target_indices,
+            self.outgoing_synapse_counts,
+            destination,
+        )
 
 
     def project_sources(self, source_indices: npt.ArrayLike) -> SignedSourceProjection:
