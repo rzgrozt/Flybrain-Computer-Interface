@@ -3,97 +3,243 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>FlyBrain Experiment Panel</title>
+  <meta name="theme-color" content="#0b1119">
+  <link rel="icon" href="data:,">
+  <title>FlyBrain Control Center · Panel v2</title>
   <link rel="stylesheet" href="/assets/style.css">
   <link rel="stylesheet" href="/assets/brain-view.css">
+  <link rel="stylesheet" href="/assets/control-center.css">
 </head>
 <body>
-  <header>
-    <div><span class="eyebrow">MALECNS · LOCAL LAB</span><h1>Experiment panel</h1></div>
-    <div id="status" class="status idle"><span></span><b>Idle</b></div>
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="FlyBrain Control Center home">
+      <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+      <span><span class="eyebrow">MALECNS / PRIVATE RESEARCH LAB</span><strong>FlyBrain <em>Control Center</em></strong></span>
+      <span class="version">PANEL v2</span>
+    </a>
+    <div class="header-actions">
+      <div id="status" class="status idle" aria-live="polite"><span></span><b>Idle</b></div>
+      <button id="openProtocol" type="button" aria-controls="protocol" aria-expanded="false">Experiment setup</button>
+      <button id="emergencyStop" type="button" disabled title="Guest emergency stop becomes available after a verified QEMU control adapter is installed">VM E-stop unavailable</button>
+    </div>
   </header>
-  <main>
-    <section class="hero card">
-      <div><p class="kicker">Neural simulation</p><div class="clock"><strong id="simTime">0.000</strong><small>s simulated</small></div></div>
-      <div class="progress"><i id="progress"></i></div>
-      <div class="metrics primary">
-        <article><label>Speed</label><b id="speed">—</b><small id="wallTime">sim / active wall</small></article>
-        <article><label>Total activity</label><b id="spikes">0</b><small>spikes</small></article>
-        <article><label>Worker memory</label><b id="memory">—</b><small>RSS</small></article>
-        <article><label>Delayed events</label><b id="events">0</b><small>pending spikes</small></article>
-      </div>
+
+  <main class="control-center">
+    <section class="status-ribbon" aria-label="Live simulation and sandbox status">
+      <div class="ribbon-item"><span class="ribbon-label">Simulation clock</span><strong><span id="simTime">0.000</span> <small>s</small></strong></div>
+      <div class="ribbon-item"><span class="ribbon-label">Compute ratio</span><strong id="speed">—</strong></div>
+      <div class="ribbon-item"><span class="ribbon-label">Cumulative spikes</span><strong id="spikes">0</strong></div>
+      <div class="ribbon-item"><span class="ribbon-label">Worker / network</span><strong id="connection">Connecting…</strong></div>
+      <div class="ribbon-item"><span class="ribbon-label">Sandbox / QEMU</span><strong id="sandboxConnection" class="disconnected-label">Not connected</strong></div>
+      <div class="ribbon-item"><span class="ribbon-label">Observation source</span><strong id="observationSource">Live simulation</strong></div>
+      <div class="ribbon-progress" aria-label="Simulation progress"><span id="progress"></span></div>
     </section>
 
-    <section class="grid">
-      <div class="card brain-card">
-        <div class="section-title"><div><p class="kicker">Brain View · measured anatomy</p><h2>Live selected-network activity</h2></div><span id="atlasState">loading atlas…</span></div>
-        <div class="brain-toolbar">
-          <button id="xyView" title="Native XY projection with equal axis scale">XY view</button>
-          <button id="orbit">Orbit on</button>
-          <button id="render">Pause rendering</button>
-          <button id="overlay" data-active="false">Show connections</button>
-          <label>min contacts<input id="minWeight" type="number" value="5" min="1"></label>
-          <label>node cap<input id="maxNodes" type="number" value="128" min="2" max="256"></label>
-          <label>edge cap<input id="maxEdges" type="number" value="512" min="1" max="2048"></label>
+    <section class="mission-grid" aria-label="Control Center monitoring panels">
+      <article class="card sandbox-card" aria-labelledby="sandboxHeading">
+        <div class="panel-heading">
+          <div><p class="kicker">01 / Environment</p><h2 id="sandboxHeading">Sandbox View</h2><p class="panel-subheading">Guest display &amp; recorded virtual cursor</p></div>
+          <span class="source-pill disconnected" id="sandboxSource">VM NOT CONNECTED</span>
         </div>
-        <div id="brainViewport" class="brain-viewport" aria-label="Interactive MaleCNS measured soma atlas"></div>
-        <div class="brain-legend"><span class="anatomy">anatomy</span><span class="input">stimulus target</span><span class="output">observed output</span><span class="watch">watchlist</span><span class="active">emitted simulated spikes</span></div>
-        <p id="activityState" class="note">idle · no activity supplied</p>
-        <p id="activitySignal" class="note">Brightness is a normalized display value, never membrane voltage or measured synaptic current.</p>
-        <p id="renderPerf" class="note">Measuring WebGL CPU submission time…</p>
-        <p id="atlasCoverage" class="note">Validating atlas and graph identity…</p>
-        <p id="overlayState" class="note">Connection overlay off. Lines show graph relationships between soma markers, not neurites or synapse locations.</p>
-        <p id="selectionCoverage" class="note">Mapping selection by stable graph index and exact MaleCNS body ID…</p>
-        <div id="selectionDetails" class="selection-details"></div>
-      </div>
-      <div class="card controls">
-        <div class="section-title"><div><p class="kicker">Protocol</p><h2>Controlled stimulus</h2></div><span class="safe">Bounded</span></div>
+        <div class="sandbox-toolbar">
+          <div class="segmented" role="group" aria-label="Sandbox observation mode">
+            <button id="modeLive" class="selected" type="button" aria-pressed="true">Guest display</button>
+            <button id="modeReplay" type="button" aria-pressed="false">Recorded replay</button>
+          </div>
+          <div class="toolbar-right">
+            <button id="sandboxFit" type="button" aria-label="Fit sandbox display">Fit</button>
+            <button id="sandboxFullscreen" type="button" aria-label="Fullscreen sandbox stage">Fullscreen</button>
+          </div>
+        </div>
+        <div id="sandboxViewport" class="sandbox-viewport" tabindex="0" aria-label="Sandbox screen or clearly labeled recorded virtual cursor">
+          <div id="sandboxLiveEmpty" class="sandbox-empty">
+            <div class="empty-symbol" aria-hidden="true">⌁</div>
+            <span class="source-pill disconnected">LOCAL VM · OFFLINE</span>
+            <h3>No guest display connected</h3>
+            <p>QEMU/KVM and noVNC are not attached. No host desktop is being controlled.</p>
+            <button id="openReplay" type="button">Inspect recorded 2D control <span aria-hidden="true">↗</span></button>
+          </div>
+          <div id="virtualStage" class="virtual-stage" hidden role="img" aria-label="Recorded virtual cursor and training target in normalized coordinates">
+            <div class="virtual-stage-grid" aria-hidden="true"></div>
+            <div class="stage-corner top-left">RECORDED ENVIRONMENT / NOT A VM</div>
+            <div class="stage-corner top-right">NORMALIZED 0–1</div>
+            <div id="virtualPath" class="virtual-path"></div>
+            <div id="virtualTarget" class="virtual-target" aria-hidden="true"><span></span></div>
+            <div id="virtualCursor" class="virtual-cursor" aria-hidden="true"><span></span></div>
+            <div id="virtualVector" class="virtual-vector" aria-hidden="true"></div>
+            <div class="stage-corner bottom-left" id="stageEpisode">EPISODE —</div>
+            <div class="stage-corner bottom-right" id="stageDistance">DISTANCE —</div>
+          </div>
+        </div>
+        <div class="replay-toolbar" id="replayToolbar" hidden>
+          <label for="recordingSelect">Recording
+            <select id="recordingSelect" aria-label="Choose validated recording"><option value="">Loading…</option></select>
+          </label>
+          <label for="episodeSelect">Episode
+            <select id="episodeSelect" aria-label="Choose recorded episode"></select>
+          </label>
+          <div class="replay-buttons" role="group" aria-label="Recorded episode playback">
+            <button type="button" id="replayPrev" aria-label="Previous recorded step">←</button>
+            <button type="button" id="replayPlay" aria-label="Play recorded steps">Play</button>
+            <button type="button" id="replayNext" aria-label="Next recorded step">→</button>
+          </div>
+        </div>
+        <div class="stage-footer">
+          <span id="sandboxMessage">The display adapter is disconnected. Recorded experiments are available separately.</span>
+          <span class="source-pill anatomy" id="sandboxControlStatus">GUEST ACTIONS OFF</span>
+        </div>
+      </article>
+
+      <article class="card brain-card" aria-labelledby="brainHeading">
+        <div class="panel-heading">
+          <div><p class="kicker">02 / Network</p><h2 id="brainHeading">Brain Activity</h2><p class="panel-subheading">Anatomical soma positions · selected simulated spikes</p></div>
+          <span id="atlasState" class="source-pill anatomy">LOADING ATLAS</span>
+        </div>
+        <div class="brain-toolbar">
+          <button id="xyView" type="button" title="Native XY projection with uniform scale">XY view</button>
+          <button id="orbit" type="button">Orbit on</button>
+          <button id="render" type="button">Pause rendering</button>
+          <button id="overlay" type="button" data-active="false">Show connections</button>
+          <label>Min contacts<input id="minWeight" type="number" value="5" min="1"></label>
+          <label>Nodes<input id="maxNodes" type="number" value="128" min="2" max="256"></label>
+          <label>Edges<input id="maxEdges" type="number" value="512" min="1" max="2048"></label>
+        </div>
+        <div id="brainViewport" class="brain-viewport" aria-label="Interactive measured MaleCNS soma atlas"></div>
+        <div class="brain-legend">
+          <span class="anatomy">Measured anatomy</span><span class="input">Stimulus</span>
+          <span class="output">Selected output</span><span class="watch">Watchlist</span>
+          <span class="active">Simulated spikes</span>
+        </div>
+        <p id="activityState" class="note">Idle · no activity supplied</p>
+        <p id="activitySignal" class="note">Activity brightness represents binned, emitted simulated spikes, not voltage or fluorescence.</p>
+        <details class="panel-details">
+          <summary>Atlas coverage &amp; render diagnostics</summary>
+          <p id="renderPerf" class="note">Measuring WebGL CPU submission time…</p>
+          <p id="atlasCoverage" class="note">Validating measured atlas positions…</p>
+          <p id="selectionCoverage" class="note">Resolving selected neurons…</p>
+          <div id="selectionDetails" class="selection-details"></div>
+        </details>
+      </article>
+
+      <article class="card motor-card" aria-labelledby="motorHeading">
+        <div class="panel-heading">
+          <div><p class="kicker">03 / Effector</p><h2 id="motorHeading">Motor Readout</h2><p class="panel-subheading">Descending-state decoder · intended vs observed</p></div>
+          <span class="source-pill unavailable" id="motorSource">NO LIVE MOTOR FEED</span>
+        </div>
+        <div class="motor-vector" aria-label="Recorded or live motor direction">
+          <div class="motor-compass">
+            <span class="compass-n">UP</span><span class="compass-s">DOWN</span><span class="compass-w">LEFT</span><span class="compass-e">RIGHT</span>
+            <div class="compass-axis vertical"></div><div class="compass-axis horizontal"></div>
+            <div id="motorArrow" class="motor-arrow" aria-hidden="true">➤</div>
+          </div>
+          <p id="motorAction" class="motor-action">No command available</p>
+          <p id="motorCommand" class="mono subtle">dx — / dy —</p>
+        </div>
+        <div class="decoder-group">
+          <div class="decoder-heading"><strong>Horizontal probe</strong><span id="horizontalModality">Not available</span></div>
+          <div id="horizontalScores" class="score-grid"><span class="empty-score">No decoder scores</span></div>
+          <div class="decoder-heading"><strong>Vertical probe</strong><span id="verticalModality">Not available</span></div>
+          <div id="verticalScores" class="score-grid"><span class="empty-score">No decoder scores</span></div>
+          <p class="note">RBF values are classifier scores, not calibrated probabilities. Each axis uses an independently simulated visual probe.</p>
+        </div>
+        <div class="motor-observed">
+          <div><span>Environment delta</span><strong id="motorObserved">—</strong></div>
+          <div><span>Click state</span><strong id="motorClick">Not implemented</strong></div>
+          <div><span>Motor feed</span><strong id="motorAttribution">Unavailable live</strong></div>
+        </div>
+        <div class="mini-heading">Recent recorded actions</div>
+        <ol id="actionHistory" class="action-history"><li>No motor session selected.</li></ol>
+      </article>
+    </section>
+
+    <section class="research-grid" aria-label="Neural diagnostics and episode exploration">
+      <article class="card pathway-card" aria-labelledby="pathwayHeading">
+        <div class="panel-heading">
+          <div><p class="kicker">04 / Connectivity</p><h2 id="pathwayHeading">Active Neural Pathways</h2></div>
+          <span class="source-pill anatomy">ANATOMY ONLY</span>
+        </div>
+        <p class="panel-subheading">Explore actual directed graph relationships from the current stimulus selection. Measured hop-level propagation arrives in the pathway integration increment.</p>
+        <div class="pathway-flow" aria-label="Pathway observation stages">
+          <span>Visual input</span><b>→</b><span>Relays</span><b>→</b><span>Descending neurons</span>
+        </div>
+        <p id="pathwayStatus" class="note">Select the visual pathway preset and reveal its bounded anatomical neighborhood in Brain View.</p>
+        <button id="pathwayExplore" type="button" class="secondary-action">Show selected anatomical connections ↗</button>
+        <p id="overlayState" class="note">Connection lines represent directed graph edges between measured somata, not physiological transmission.</p>
+      </article>
+
+      <article class="card neural-card" aria-labelledby="neuralHeading">
+        <div class="panel-heading">
+          <div><p class="kicker">05 / Selected channels</p><h2 id="neuralHeading">Neural Detail</h2></div>
+          <span class="source-pill measured">LIVE SIMULATION ONLY</span>
+        </div>
+        <div class="chart-group">
+          <div class="chart-label"><strong>Population firing rate</strong><span>Hz / neuron · selected group</span></div>
+          <canvas id="rateChart" aria-label="Recent actual population spike rates"></canvas>
+          <div id="legend" class="legend">No population samples yet.</div>
+          <div class="chart-label"><strong>Selected-neuron voltage</strong><span>mV · bounded watchlist</span></div>
+          <canvas id="voltageChart" aria-label="Recent voltage samples for selected neurons"></canvas>
+        </div>
+        <div id="watchValues" class="watch-values"><p>No neural samples yet.</p></div>
+        <p class="note">Recorded motor episodes contain total network spike counts per probe, not per-neuron traces. Missing channels remain unavailable.</p>
+      </article>
+
+      <article class="card timeline-card" aria-labelledby="timelineHeading">
+        <div class="panel-heading">
+          <div><p class="kicker">06 / Trial history</p><h2 id="timelineHeading">Episode Timeline</h2></div>
+          <span class="source-pill unavailable" id="timelineSource">NO RECORDING</span>
+        </div>
+        <div class="timeline-summary"><span id="timelineEpisode">Select a recording</span><strong id="timelineDistance">—</strong></div>
+        <label class="scrub-label" for="stepScrub">Recorded step <span id="replayStepText">—</span></label>
+        <input id="stepScrub" type="range" min="0" max="0" value="0" disabled aria-label="Scrub recorded episode steps">
+        <ol id="episodeTimeline" class="episode-timeline"><li class="timeline-empty">No episode loaded.</li></ol>
+        <p class="note">Step order is recorded. Neural simulation timestamps were not stored in these validation artifacts; the replay does not invent them.</p>
+      </article>
+    </section>
+
+    <details id="protocol" class="card protocol-drawer">
+      <summary><span><span class="kicker">07 / Existing experiment lifecycle</span><strong>Neural simulation configuration</strong></span><span>Open controls ↗</span></summary>
+      <div class="protocol-inner">
+        <div class="panel-heading"><div><h2>Controlled stimulus</h2><p class="panel-subheading">Runs the original isolated simulation worker; does not operate a VM.</p></div><span class="source-pill anatomy">BOUNDED CONFIGURATION</span></div>
         <div class="form-grid">
           <label>Population preset <span>annotation query</span><select id="preset"><option value="manual">Manual indices</option></select></label>
           <label>Duration <span>s</span><input id="duration" type="number" value="1" min="0.01" max="60" step="0.01"></label>
-          <label>Target neurons <span>indices</span><input id="targets" value="0"></label>
+          <label>Stimulus neurons <span>indices</span><input id="targets" value="0"></label>
           <label>Pulse interval <span>ms</span><input id="interval" type="number" value="5" min="0.1" step="0.1"></label>
           <label>Amplitude <span>mV</span><input id="amplitude" type="number" value="8" min="0.1" max="100" step="0.1"></label>
           <label>Stimulus start <span>s</span><input id="stimStart" type="number" value="0" min="0" max="60" step="0.01"></label>
           <label>Stimulus stop <span>s</span><input id="stimStop" type="number" value="0.05" min="0.0001" max="60" step="0.01"></label>
-          <label>Watchlist <span>indices</span><input id="watch" value="0"></label>
+          <label>Neuron watchlist <span>indices</span><input id="watch" value="0"></label>
           <label>Seed <span>integer</span><input id="seed" type="number" value="0" min="0"></label>
-          <label>Subnormal drive <span>policy</span><select id="policy"><option value="preserve">Preserve exact (default)</option><option value="zero">Zero tiny values (faster approximation)</option></select></label>
+          <label>Subnormal drive <span>policy</span><select id="policy"><option value="preserve">Preserve exact (default)</option><option value="zero">Zero tiny values (approximation)</option></select></label>
         </div>
         <p id="presetNote" class="note">Manual engineering stimulation and observation assignments.</p>
-        <p id="policyNote" class="note">Exact IEEE-754 subnormal decay is preserved. This is the scientific default and can become slow in long sparse runs.</p>
-        <div class="buttons"><button id="start" class="accent">Start experiment</button><button id="pause" disabled>Pause</button><button id="reset" disabled>Reset</button></div>
-        <p id="error" role="alert"></p>
+        <p id="policyNote" class="note">Exact IEEE-754 subnormal decay is preserved. This scientific default can become slow in long sparse runs.</p>
+        <div class="buttons"><button id="start" class="accent" type="button">Start simulation</button><button id="pause" type="button" disabled>Pause</button><button id="reset" type="button" disabled>Reset simulation</button></div>
+        <p id="error" role="alert" aria-live="assertive"></p>
       </div>
+    </details>
 
-      <div class="card chart-card">
-        <div class="section-title"><div><p class="kicker">Bounded telemetry</p><h2>Population rate</h2></div><span>Hz / neuron</span></div>
-        <canvas id="rateChart"></canvas>
-        <div id="legend" class="legend"></div>
-      </div>
-
-      <div class="card chart-card watch-card">
-        <div class="section-title"><div><p class="kicker">Watchlist</p><h2>Selected neural state</h2></div><span>latest values</span></div>
-        <canvas id="voltageChart"></canvas>
-        <div id="watchValues" class="watch-values"><p>No samples yet.</p></div>
-      </div>
-
-      <div class="card diagnostics">
-        <div class="section-title"><div><p class="kicker">Engineering</p><h2>Runtime diagnostics</h2></div><span id="connection">connecting…</span></div>
-        <dl>
-          <div><dt>Experiment</dt><dd id="experiment">—</dd></div>
-          <div><dt>Worker loop</dt><dd id="loop">—</dd></div>
-          <div><dt>Browser frames dropped</dt><dd id="dropped">0</dd></div>
-          <div><dt>Worker telemetry dropped</dt><dd id="ipcDropped">0</dd></div>
-          <div><dt>Edges visited</dt><dd id="edges">0</dd></div>
-        </dl>
-        <p class="disclaimer">Population names and stimulation targets are researcher-defined engineering assignments. They do not assert biological function. This panel observes and stimulates MaleCNS; it does not select behavior or control the desktop.</p>
-      </div>
+    <section class="card diagnostics" aria-label="Engineering diagnostics">
+      <div class="panel-heading"><div><p class="kicker">08 / Observability</p><h2>Runtime Diagnostics</h2></div><span class="source-pill measured">REAL MEASUREMENTS</span></div>
+      <dl>
+        <div><dt>Experiment</dt><dd id="experiment">—</dd></div>
+        <div><dt>Worker loop</dt><dd id="loop">—</dd></div>
+        <div><dt>Wall time</dt><dd id="wallTime">—</dd></div>
+        <div><dt>Worker RSS</dt><dd id="memory">—</dd></div>
+        <div><dt>Delayed events</dt><dd id="events">0</dd></div>
+        <div><dt>Edges visited</dt><dd id="edges">0</dd></div>
+        <div><dt>Browser drops</dt><dd id="dropped">0</dd></div>
+        <div><dt>IPC drops</dt><dd id="ipcDropped">0</dd></div>
+      </dl>
+      <p class="disclaimer">The currently supported panel injects researcher-defined neural stimulation. The virtual-cursor recordings represent independently validated experiments, not this live worker performing guest OS actions. Anatomical relationships alone do not establish causal responsibility.</p>
     </section>
   </main>
-  <footer>
-    <p>Modified integration. Built with <a href="https://github.com/cobanov/fly-connectome-template">fly-connectome-template</a> by <a href="https://github.com/cobanov">Mert Cobanov</a>. <a href="/assets/TEMPLATE-LICENSE.txt">License</a> · <a href="/assets/THIRD_PARTY_NOTICES.md">Notices</a></p>
+
+  <footer class="app-footer">
+    <span>FLYBRAIN CONTROL CENTER · LOCAL ONLY · <a href="/assets/THIRD_PARTY_NOTICES.md">Third-party notices</a></span>
+    <span>Measured atlas adapted from <a href="https://github.com/cobanov/fly-connectome-template">fly-connectome-template</a> · <a href="/assets/TEMPLATE-LICENSE.txt">License</a></span>
   </footer>
   <script type="module" src="/assets/app.js"></script>
+  <script type="module" src="/assets/control-center.js"></script>
 </body>
 </html>
