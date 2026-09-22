@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,13 @@ def load_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
     if payload.get("schema_version") != 1:
         raise ValueError("unsupported live-desktop probe schema")
     return payload
+
+
+def _rgb_triplet(values: Iterable[int]) -> tuple[int, int, int]:
+    channels = tuple(int(value) for value in values)
+    if len(channels) != 3:
+        raise ValueError("target RGB must contain exactly three channels")
+    return channels[0], channels[1], channels[2]
 
 
 def _expected_action(delta: float) -> int:
@@ -104,7 +112,7 @@ def run_live_probe(
 
     target_spec = config["target"]
     target = ColorTargetDetector(
-        target_rgb=tuple(int(v) for v in target_spec["rgb"]),
+        target_rgb=_rgb_triplet(target_spec["rgb"]),
         tolerance=int(target_spec["tolerance"]),
         minimum_pixels=int(target_spec["minimum_pixels"]),
     ).detect(frame)
