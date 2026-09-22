@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-dn-nonlinear-readout-v1",
+  "motor_config": "configs/spatial-motor-pruned-dense-horizontal-v1.json",
+  "axis": "horizontal",
+  "train_positions": [0.10, 0.2333, 0.3667, 0.50, 0.6333, 0.7667, 0.90],
+  "test_positions": [0.1667, 0.30, 0.4333, 0.5667, 0.70, 0.8333],
+  "linear_ridge": {
+    "alpha": 0.1,
+    "standardization_epsilon": 1e-9
+  },
+  "rbf_ridge": {
+    "alpha": 0.1,
+    "gamma": 0.5,
+    "standardization_epsilon": 1e-9
+  },
+  "gates": {
+    "maximum_test_mae": 0.15,
+    "minimum_side_accuracy": 0.8333333333333334
+  }
+}
