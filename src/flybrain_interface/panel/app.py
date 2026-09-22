@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from flybrain_interface.environment.pointer import uinput_capability
 from flybrain_interface.experiments.sensory_descending import panel_presets
 from flybrain_interface.experiments.visual_pathway import visual_panel_preset
 from flybrain_interface.panel.anatomy import ATLAS_DIRECTORY, AtlasJoin
@@ -109,6 +110,19 @@ def create_app(
     async def status() -> dict[str, Any]:
         controller.poll_latest()
         return controller.latest
+
+    @app.get("/api/computer-use/capabilities")
+    async def computer_use_capabilities() -> dict[str, Any]:
+        pointer = await asyncio.to_thread(uinput_capability)
+        return {
+            "os_pointer": {
+                "backend": pointer.backend,
+                "available": pointer.available,
+                "detail": pointer.detail,
+                "default_enabled": False,
+                "requires_explicit_cli_allow": True,
+            }
+        }
 
     @app.get("/api/presets/sensory-descending")
     async def sensory_descending_presets() -> dict[str, Any]:
