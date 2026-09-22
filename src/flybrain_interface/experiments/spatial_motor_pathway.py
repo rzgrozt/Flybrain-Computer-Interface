@@ -62,8 +62,11 @@ Axis = Literal["horizontal", "vertical"]
 
 
 class DirectedFastGraph(Protocol):
-    neuron_count: int
-    presynaptic_signs: np.ndarray
+    @property
+    def neuron_count(self) -> int: ...
+
+    @property
+    def presynaptic_signs(self) -> np.ndarray: ...
 
     def outgoing(self, source_index: int) -> OutgoingConnections: ...
 
