@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-broad-descending-state-v1",
+  "dataset": "male-cns:v1.0",
+  "motor_config": "configs/spatial-motor-pruned-dense-horizontal-v1.json",
+  "axes": ["horizontal"],
+  "positions": [0.10, 0.1667, 0.2333, 0.30, 0.3667, 0.4333, 0.4667, 0.50, 0.5333, 0.5667, 0.6333, 0.70, 0.7667, 0.8333, 0.90],
+  "maximum_descending_hops": 3,
+  "temporal_bins": 3
+}
