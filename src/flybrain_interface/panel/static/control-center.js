@@ -1,7 +1,8 @@
 import {clampNormalized, replayDirection, scoreRows, selectRecordedStep} from './replay-state.mjs';
+import {appendNeuralSample} from './live-timeline.mjs';
 
 const $ = id => document.getElementById(id);
-const state = {recording: null, recordingId: null, episode: 0, step: 0, mode: 'guest', playing: false, timer: null};
+const state = {recording: null, recordingId: null, episode: 0, step: 0, mode: 'guest', playing: false, timer: null, liveSamples: []};
 const fmt = value => Number.isFinite(value) ? value.toFixed(4) : '—';
 const escapeHtml = value => {const node = document.createElement('span'); node.textContent = String(value); return node.innerHTML;};
 
@@ -11,6 +12,42 @@ function stopPlayback() {
   state.playing = false;
   $('replayPlay').textContent = 'Play';
   $('replayPlay').setAttribute('aria-label', 'Play recorded steps');
+}
+function renderLiveTimeline() {
+  const samples = state.liveSamples;
+  const mostRecent = samples.at(-1);
+  $('timelineSource').textContent = samples.length ? 'LIVE NEURAL SAMPLES' : 'NO LIVE EPISODE FEED';
+  $('timelineSource').className = 'source-pill ' + (samples.length ? 'measured' : 'unavailable');
+  $('timelineEpisode').textContent = mostRecent
+    ? 'Simulation ' + mostRecent.session_id
+    : 'No live neural samples yet';
+  $('timelineDistance').textContent = 'Motor / reward unavailable';
+  $('replayStepText').textContent = 'live only';
+  $('stepScrub').disabled = true;
+  $('stepScrub').value = '0';
+  if (!samples.length) {
+    const empty = document.createElement('li');
+    empty.className = 'timeline-empty';
+    empty.textContent = 'Ordinary stimulation does not generate guest actions or rewards.';
+    $('episodeTimeline').replaceChildren(empty);
+    return;
+  }
+  const items = samples.slice(-40).reverse().map(sample => {
+    const row = document.createElement('li');
+    const item = document.createElement('div');
+    item.className = 'neural-event';
+    const label = document.createElement('span');
+    label.textContent = 'CHUNK ' + sample.step_id + ' · ' +
+      sample.simulated_time_s.toFixed(3) + ' simulated s';
+    const spikes = document.createElement('small');
+    spikes.textContent = sample.chunk_spikes == null
+      ? 'spikes unavailable'
+      : sample.chunk_spikes.toLocaleString() + ' simulated spikes';
+    item.append(label, spikes);
+    row.append(item);
+    return row;
+  });
+  $('episodeTimeline').replaceChildren(...items);
 }
 function clearRecordedPanels() {
   $('motorSource').textContent = 'NO LIVE MOTOR FEED';
@@ -28,16 +65,7 @@ function clearRecordedPanels() {
   const item = document.createElement('li');
   item.textContent = 'No live motor session is attached.';
   $('actionHistory').append(item);
-  $('timelineSource').textContent = 'NO LIVE EPISODE FEED';
-  $('timelineSource').className = 'source-pill unavailable';
-  $('timelineEpisode').textContent = 'Recorded timeline available in Replay';
-  $('timelineDistance').textContent = '—';
-  $('replayStepText').textContent = '—';
-  $('stepScrub').disabled = true;
-  const empty = document.createElement('li');
-  empty.className = 'timeline-empty';
-  empty.textContent = 'The ordinary simulation worker does not emit computer-use episode events.';
-  $('episodeTimeline').replaceChildren(empty);
+  renderLiveTimeline();
 }
 function setMode(mode) {
   state.mode = mode;
@@ -304,6 +332,10 @@ $('pathwayExplore').onclick = () => {
 };
 addEventListener('resize', () => {if (state.mode === 'replay') render();});
 document.addEventListener('visibilitychange', () => {if (document.hidden) stopPlayback();});
+window.addEventListener('flybrain:live-neural-sample', event => {
+  state.liveSamples = appendNeuralSample(state.liveSamples, event.detail);
+  if (state.mode === 'guest') renderLiveTimeline();
+});
 $('sandboxViewport').addEventListener('keydown', event => {
   if (event.target !== $('sandboxViewport')) return;
   if (event.code === 'Space' && state.mode === 'replay') {

@@ -35,6 +35,7 @@ function update(t){
     drawRate();drawVoltage();renderWatch(t);
     brain.updateActivity(t.brain_activity||null);
     renderActivityMeta(t);
+    window.dispatchEvent(new CustomEvent('flybrain:live-neural-sample',{detail:t}));
   }else if(shouldClearActivity(s)){
     brain.updateActivity(null);
     $('activityState').textContent=s==='idle'?'idle · no activity supplied':`${s} · activity cleared`;
