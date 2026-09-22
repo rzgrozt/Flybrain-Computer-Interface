@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-dn-direction-classifier-v1",
+  "source_artifact": "artifacts/spatial-motor-dn-nonlinear-readout-v1.json",
+  "axis": "horizontal",
+  "center_position": 0.5,
+  "train_positions": [0.10, 0.2333, 0.3667, 0.6333, 0.7667, 0.90],
+  "test_positions": [0.1667, 0.30, 0.4333, 0.5667, 0.70, 0.8333],
+  "linear_alpha_grid": [0.001, 0.01, 0.1, 1.0, 10.0],
+  "rbf_alpha_grid": [0.001, 0.01, 0.1, 1.0],
+  "rbf_gamma_grid": [0.0001, 0.0003, 0.001, 0.003, 0.01, 0.03, 0.1],
+  "standardization_epsilon": 1e-9,
+  "cursor": {
+    "start": 0.5,
+    "step_scale": 0.1,
+    "command_magnitude": 1.0
+  },
+  "gates": {
+    "minimum_test_accuracy": 0.8333333333333334,
+    "require_both_sides_represented": true
+  }
+}
