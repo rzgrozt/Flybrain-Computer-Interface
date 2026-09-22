@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "name": "spatial-motor-virtual-cursor-2d-generalization-v1",
+  "broad_state_config": "configs/spatial-motor-broad-descending-state-v1.json",
+  "horizontal": {
+    "classifier_backend": "rbf_pca",
+    "classifier_config": "configs/spatial-motor-broad-dn-rbf-direction-v1.json",
+    "classifier_artifact": "artifacts/spatial-motor-broad-dn-rbf-direction-v1.json"
+  },
+  "vertical": {
+    "classifier_backend": "rbf_pca",
+    "classifier_config": "configs/spatial-motor-broad-dn-rbf-direction-vertical-v1.json",
+    "classifier_artifact": "artifacts/spatial-motor-broad-dn-rbf-direction-vertical-v1.json"
+  },
+  "episodes": [
+    {"start_x": 0.52, "start_y": 0.48, "target_x": 0.14, "target_y": 0.16},
+    {"start_x": 0.48, "start_y": 0.52, "target_x": 0.86, "target_y": 0.84},
+    {"start_x": 0.18, "start_y": 0.82, "target_x": 0.57, "target_y": 0.43},
+    {"start_x": 0.82, "start_y": 0.18, "target_x": 0.43, "target_y": 0.57}
+  ],
+  "cursor": {
+    "step_scale": 0.0667,
+    "axis_success_tolerance": 0.07,
+    "max_steps": 10,
+    "reversal_margin_threshold": 0.15
+  },
+  "os_pointer": {
+    "backend": "dry_run",
+    "enabled": false,
+    "pixel_step": 24
+  },
+  "relative_visualization": {
+    "center": 0.5,
+    "minimum": 0.10,
+    "maximum": 0.90
+  },
+  "gates": {
+    "minimum_episode_success_fraction": 1.0,
+    "require_mean_distance_reduction": true,
+    "require_all_steps_nonincreasing": true
+  }
+}
