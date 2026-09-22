@@ -59,7 +59,9 @@ def _feature_scores(
     pooled = np.sqrt(
         0.5 * (np.var(left, axis=0) + np.var(right, axis=0))
     )
-    return np.abs(mean_delta) / np.maximum(pooled, epsilon)
+    return np.asarray(
+        np.abs(mean_delta) / np.maximum(pooled, epsilon), dtype=np.float64
+    )
 
 
 def _select_indices(
@@ -91,7 +93,7 @@ def _apply_standardizer(
     mean: np.ndarray,
     scale: np.ndarray,
 ) -> np.ndarray:
-    return (features - mean) / scale
+    return np.asarray((features - mean) / scale, dtype=np.float64)
 
 
 def _one_hot(labels: np.ndarray) -> np.ndarray:
