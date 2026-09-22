@@ -152,3 +152,41 @@ def test_observation_route_only_accepts_server_verified_paths(
                 }
             }
         )
+
+
+def test_start_rejects_invalid_pathway_before_worker_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from flybrain_interface.panel.models import (
+        ExperimentConfig,
+        PathwayObservationConfig,
+    )
+
+    app = create_app(tmp_path, tmp_path / "runs")
+    endpoint = {
+        item.path: item.endpoint for item in app.routes if isinstance(item, APIRoute)
+    }["/api/experiments"]
+    commands: list[str] = []
+    monkeypatch.setattr(
+        app.state.controller, "command", lambda action, config: commands.append(action)
+    )
+    app.state.controller.latest = {"status": "idle"}
+    invalid = ExperimentConfig(
+        pathway_observation=PathwayObservationConfig(
+            target_neuron_index=725,
+            path_index=4,  # DNp09_L has only four routes.
+        )
+    )
+    with pytest.raises(HTTPException) as rejected:
+        asyncio.run(endpoint(invalid))
+    assert rejected.value.status_code == 422
+    assert commands == []
+
+    valid = ExperimentConfig(
+        pathway_observation=PathwayObservationConfig(
+            target_neuron_index=725, path_index=0
+        )
+    )
+    response = asyncio.run(endpoint(valid))
+    assert response.accepted and response.status == "starting"
+    assert commands == ["start"]

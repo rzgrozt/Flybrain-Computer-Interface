@@ -260,6 +260,15 @@ def create_app(
         current = controller.latest.get("status")
         if current in {"starting", "running", "pausing", "paused", "resuming"}:
             raise HTTPException(409, "an experiment is already active")
+        # Reject an unknown target/route before spinning up a costly worker.
+        # The worker independently re-resolves the identifiers at startup.
+        if config.pathway_observation is not None:
+            try:
+                await asyncio.to_thread(resolve_observation, config.pathway_observation)
+            except ValueError as error:
+                raise HTTPException(422, str(error)) from error
+            except (OSError, KeyError, TypeError) as error:
+                raise HTTPException(503, "anatomical pathways unavailable") from error
         try:
             controller.command("start", config)
         except RuntimeError as error:
