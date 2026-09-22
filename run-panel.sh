@@ -7,7 +7,7 @@ cd "$PROJECT_ROOT"
 
 DATA_DIR="${FLYBRAIN_DATA_DIR:-$PROJECT_ROOT/data/processed/malecns-v1.0}"
 OUTPUT_DIR="${FLYBRAIN_OUTPUT_DIR:-$PROJECT_ROOT/runs/panel}"
-PANEL_PORT="${FLYBRAIN_PORT:-8000}"
+PANEL_PORT="${FLYBRAIN_PORT:-8765}"
 
 if [[ ! "$PANEL_PORT" =~ ^[0-9]+$ ]] || (( 10#$PANEL_PORT < 1 || 10#$PANEL_PORT > 65535 )); then
   printf 'Invalid FLYBRAIN_PORT: %s (expected 1–65535).\n' "$PANEL_PORT" >&2
