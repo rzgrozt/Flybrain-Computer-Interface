@@ -27,10 +27,16 @@ export type Neighborhood = {
   }[];
 };
 
+export type PathwayOverlay = {
+  nodes: MappedNeuron[];
+  edges: Neighborhood["edges"];
+};
+
 export type BrainView = {
   updateActivity(frame: BrainActivity | null): void;
   setSelection(inputs: MappedNeuron[], outputs: MappedNeuron[], watch: MappedNeuron[]): void;
   setNeighborhood(value: Neighborhood | null): void;
+  setPathway(value: PathwayOverlay | null): void;
   resetView(): void;
   setOrbit(enabled: boolean): void;
   setRendering(enabled: boolean): void;
@@ -90,6 +96,8 @@ export function createBrainView(host: HTMLElement, stateLabel: HTMLElement): Bra
   let geometry: THREE.BufferGeometry | null = null;
   let material: THREE.ShaderMaterial | null = null;
   let lines: THREE.LineSegments | null = null;
+  let pathwayLines: THREE.LineSegments | null = null;
+  let pathwayOverlay: PathwayOverlay | null = null;
   let size = new THREE.Vector3(5, 2, 1);
   let pointByBodyId = new Map<string, number>();
   let pointByNeuronIndex = new Map<number, number>();
@@ -97,6 +105,7 @@ export function createBrainView(host: HTMLElement, stateLabel: HTMLElement): Bra
   let transformedPositions = new Float32Array(0);
   let activity = new Float32Array(0);
   let selection = new Float32Array(0);
+  let pathway = new Float32Array(0);
   let activePoints: number[] = [];
   let orbit = true;
   let rendering = true;
@@ -170,32 +179,38 @@ export function createBrainView(host: HTMLElement, stateLabel: HTMLElement): Bra
     transformedPositions = new Float32Array(xyz);
     activity = new Float32Array(manifest.brainCount);
     selection = new Float32Array(manifest.brainCount);
+    pathway = new Float32Array(manifest.brainCount);
     geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(transformedPositions, 3));
     geometry.setAttribute("activity", new THREE.BufferAttribute(activity, 1));
     geometry.setAttribute("selection", new THREE.BufferAttribute(selection, 1));
+    geometry.setAttribute("pathway", new THREE.BufferAttribute(pathway, 1));
     material = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
       uniforms: {pixelRatio: {value: Math.min(window.devicePixelRatio, 1.5)}},
-      vertexShader: `attribute float activity; attribute float selection;
-        varying float strength; varying float selected; uniform float pixelRatio;
-        void main() { strength=activity; selected=selection;
+      vertexShader: `attribute float activity; attribute float selection; attribute float pathway;
+        varying float strength; varying float selected; varying float route; uniform float pixelRatio;
+        void main() { strength=activity; selected=selection; route=pathway;
         gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
-        gl_PointSize=(0.9+strength*2.4+(selected>0.0?1.3:0.0))*pixelRatio; }`,
-      fragmentShader: `varying float strength; varying float selected;
+        gl_PointSize=(0.9+strength*2.4+(selected>0.0?1.3:0.0)+(route>0.0?3.5:0.0))*pixelRatio; }`,
+      fragmentShader: `varying float strength; varying float selected; varying float route;
         void main() { float r=length(gl_PointCoord-vec2(.5)); if(r>.5) discard;
         vec3 base=vec3(.12,.35,.75);
         if(selected==1.0) base=vec3(.79,.96,.37);
         else if(selected==2.0) base=vec3(1.,.55,.27);
         else if(selected==3.0) base=vec3(.78,.61,1.);
-        vec3 color=mix(base,vec3(.25,.95,1.),strength);
+        if(route==1.0) base=vec3(.67,.60,1.);
+        else if(route==2.0) base=vec3(.95,.77,1.);
+        vec3 signal=route>0.0?vec3(1.,.73,.34):vec3(.25,.95,1.);
+        vec3 color=mix(base,signal,strength);
         color=mix(color,vec3(1.),smoothstep(.6,1.,strength));
-        gl_FragColor=vec4(color,(.26+.7*max(strength,selected>0.0?.38:0.0))*(1.-smoothstep(.18,.5,r))); }`,
+        gl_FragColor=vec4(color,(.26+.7*max(strength,route>0.0?.7:selected>0.0?.38:0.0))*(1.-smoothstep(.18,.5,r))); }`,
     });
     anatomy.add(new THREE.Points(geometry, material));
     stateLabel.textContent = "atlas ready";
     fit();
+    if (pathwayOverlay) setPathway(pathwayOverlay);
   }).catch((error: unknown) => {
     if (!disposed) stateLabel.textContent = error instanceof Error ? error.message : "atlas unavailable";
   });
@@ -316,10 +331,54 @@ export function createBrainView(host: HTMLElement, stateLabel: HTMLElement): Bra
     repaint();
   };
 
+  function setPathway(value: PathwayOverlay | null): void {
+    pathwayOverlay = value;
+    if (pathwayLines) {
+      anatomy.remove(pathwayLines);
+      pathwayLines.geometry.dispose();
+      (pathwayLines.material as THREE.Material).dispose();
+      pathwayLines = null;
+    }
+    if (!geometry) return; // Selection is replayed after the atlas loads.
+    pathway.fill(0);
+    if (value) {
+      const pointByIndex = new Map<number, number>();
+      value.nodes.slice(0, 4).forEach((node, index) => {
+        const point = pointByBodyId.get(node.body_id);
+        if (point === undefined || !node.visible_soma) return;
+        pointByIndex.set(node.neuron_index, point);
+        pathway[point] = index === value.nodes.length - 1 ? 2 : 1;
+      });
+      const vertices: number[] = [];
+      const colors: number[] = [];
+      for (const edge of value.edges.slice(0, 3)) {
+        const source = pointByIndex.get(edge.source_neuron_index);
+        const target = pointByIndex.get(edge.target_neuron_index);
+        if (source === undefined || target === undefined) continue;
+        for (const point of [source, target]) {
+          const offset = point * 3;
+          vertices.push(...transformedPositions.slice(offset, offset + 3));
+          colors.push(0.67, 0.60, 1.0);
+        }
+      }
+      if (vertices.length) {
+        const lineGeometry = new THREE.BufferGeometry();
+        lineGeometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+        lineGeometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+        pathwayLines = new THREE.LineSegments(lineGeometry,
+          new THREE.LineBasicMaterial({vertexColors: true, transparent: true, opacity: 0.95}));
+        anatomy.add(pathwayLines);
+      }
+    }
+    geometry.getAttribute("pathway").needsUpdate = true;
+    repaint();
+  }
+
   return {
     updateActivity,
     setSelection,
     setNeighborhood,
+    setPathway,
     resetView() { orbit = false; anatomy.rotation.set(0, 0, 0); fit(); },
     setOrbit(enabled: boolean) { orbit = enabled; },
     setRendering(enabled: boolean) { rendering = enabled; if (enabled) repaint(); },
@@ -340,6 +399,7 @@ export function createBrainView(host: HTMLElement, stateLabel: HTMLElement): Bra
       renderer.domElement.removeEventListener("pointerup", up);
       renderer.domElement.removeEventListener("pointercancel", up);
       if (lines) { lines.geometry.dispose(); (lines.material as THREE.Material).dispose(); }
+      if (pathwayLines) { pathwayLines.geometry.dispose(); (pathwayLines.material as THREE.Material).dispose(); }
       geometry?.dispose();
       material?.dispose();
       renderer.dispose();
