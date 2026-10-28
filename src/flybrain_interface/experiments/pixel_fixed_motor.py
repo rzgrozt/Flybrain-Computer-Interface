@@ -101,6 +101,7 @@ def run_sequence(
     *,
     chunk_ms: float,
     disconnected: bool = False,
+    extra_watch_indices: tuple[int, ...] = (),
 ) -> dict[str, Any]:
     """Reset once per condition; retain recurrent state between motor ticks."""
     frame_rate = setup.graded_config.frame_rate_hz
@@ -131,7 +132,9 @@ def run_sequence(
     )
     watch = tuple(
         sorted(
-            set(downstream).union(
+            set(downstream)
+            .union(extra_watch_indices)
+            .union(
                 index for indices in simulator.populations.values() for index in indices
             )
         )
@@ -142,6 +145,11 @@ def run_sequence(
     peak_motor_mv = 0.0
     total_spikes = 0
     clamped_spikes = 0
+    watch_array = np.asarray(watch, dtype=np.int64)
+    peak_voltage = np.zeros(len(watch))
+    min_voltage = np.zeros(len(watch))
+    peak_drive = np.zeros(len(watch))
+    watch_counts = np.zeros(len(watch), dtype=np.int64)
     started = perf_counter()
     for start in range(0, round(exact_steps), round(exact_chunk)):
         stop = min(start + round(exact_chunk), round(exact_steps))
@@ -159,6 +167,12 @@ def run_sequence(
         )
         command = decoder.decode(readout)
         deltas = result.voltage_mv - simulator.config.resting_mv
+        peak_voltage = np.maximum(peak_voltage, np.max(deltas, axis=0))
+        min_voltage = np.minimum(min_voltage, np.min(deltas, axis=0))
+        peak_drive = np.maximum(
+            peak_drive, np.max(np.abs(result.synaptic_drive_mv), axis=0)
+        )
+        watch_counts += counts[watch_array]
         for position, index in enumerate(watch):
             peak = float(np.max(np.abs(deltas[:, position])))
             if index in downstream:
@@ -203,6 +217,16 @@ def run_sequence(
         "neural_execution_wall_s": elapsed,
         "simulated_to_execution_wall_ratio": duration / elapsed,
         "ticks": ticks,
+        "watched_neurons": [
+            {
+                "neuron_index": index,
+                "max_voltage_delta_mv": float(peak_voltage[position]),
+                "min_voltage_delta_mv": float(min_voltage[position]),
+                "max_abs_drive_mv": float(peak_drive[position]),
+                "spike_count": int(watch_counts[position]),
+            }
+            for position, index in enumerate(watch)
+        ],
     }
 
 

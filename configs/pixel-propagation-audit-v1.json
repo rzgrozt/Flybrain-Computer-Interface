@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "name": "pixel-propagation-audit-v1",
+  "pixel_config": "configs/pixel-fixed-motor-v1.json",
+  "maximum_path_hops": 3,
+  "maximum_watch_neurons": 4096,
+  "intervention_targets": ["DNa02_L", "DNp09_L"],
+  "pulse": {"times_s": [0.001, 0.005, 0.009], "amplitude_mv": 8.0, "duration_s": 0.02},
+  "reference_tolerances": {"voltage_mv": 1e-10, "drive_mv": 1e-10, "spike_time_s": 1e-12}
+}

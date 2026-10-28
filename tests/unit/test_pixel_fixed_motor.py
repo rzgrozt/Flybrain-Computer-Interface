@@ -176,9 +176,13 @@ def test_pixels_drive_fixed_motor_only_through_neural_response() -> None:
     assert response["clamped_visual_spikes"] == 0
     assert len(response["ticks"]) == 10
     assert response["frame_sha256"] == disconnected["frame_sha256"]
+    right = next(row for row in response["watched_neurons"] if row["neuron_index"] == 3)
+    assert right["spike_count"] > 0
+    assert right["max_abs_drive_mv"] > 0
     for result in (blank, disconnected):
         assert not result["motor_nonzero"]
         assert result["total_network_spikes"] == 0
+        assert all(row["max_abs_drive_mv"] == 0 for row in result["watched_neurons"])
     for tick in response["ticks"]:
         assert not tick["motor_command"]["click"]
         assert tick["motor_command"]["delta_x"] == min(

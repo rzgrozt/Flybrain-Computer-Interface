@@ -50,6 +50,18 @@ uv run python -m flybrain_interface.experiments.pixel_fixed_motor \
   --output artifacts/pixel-fixed-motor-v1.json
 ```
 
+The [pixel propagation audit](docs/pixel-propagation-audit.md) extends this to
+2,481 pathway neurons. In the default run, first-hop depolarization reaches
+1.59 mV without spikes; later hops receive no drive. Explicit test pulses verify
+downstream transmission and fixed DN motor output, while ten induced-path
+comparisons agree with Brian2. These controls diagnose the current model; they
+do not demonstrate visual targeting or learning.
+
+```bash
+uv run python -m flybrain_interface.experiments.pixel_propagation_audit \
+  --output artifacts/pixel-propagation-audit-v1.json
+```
+
 ## Development setup
 
 Python 3.11 or newer and [uv](https://docs.astral.sh/uv/) are required.

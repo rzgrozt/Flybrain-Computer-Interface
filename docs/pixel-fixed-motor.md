@@ -108,3 +108,7 @@ This baseline does not replace those experiments. It provides a separate,
 reproducible starting point for testing biologically justified propagation changes
 before adding reinforcement. The current failure to reach DNs must remain visible
 when evaluating any such change.
+
+The [propagation audit](pixel-propagation-audit.md) now applies the same pixel
+stimulus to all verified shortest-path relays, adds explicit test-pulse controls,
+and compares small real spiking subpaths against Brian2.
