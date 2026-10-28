@@ -1,5 +1,13 @@
 # Factorized 2D MaleCNS cursor control and OS pointer bridge — 2026-09-22
 
+**Scope clarification (2026-10-28):** the factorized controller below uses supervised
+PCA/RBF motor readouts and target-relative synthetic probes. It is a diagnostic
+reservoir experiment, not the fixed-decoder architecture or connectome-internal
+reinforcement learning. Later local live-desktop probe artifacts also exist; they
+use color-target extraction before synthesizing the visual probes. Neither result
+establishes direct desktop-pixel perception. See the separate
+[pixel/fixed motor baseline](pixel-fixed-motor.md).
+
 ## Milestone
 
 The project now demonstrates factorized 2D virtual cursor target seeking driven by

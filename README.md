@@ -9,7 +9,7 @@ computer actions.
 
 ## Current status
 
-The first executable foundation is in place:
+The executable foundation and diagnostic motor experiments are in place:
 
 - target-by-source SciPy CSR connectivity for CPU-first sparse propagation;
 - a small Brian2 reference backend using the published Shiu et al. LIF defaults;
@@ -27,8 +27,28 @@ The first executable foundation is in place:
 
 The real MaleCNS graph is connected to the sparse LIF runtime. Brian2 remains the
 transparent reference for induced-subgraph validation rather than full-network
-execution. No plasticity has been implemented and no desktop-control API is
-connected.
+execution. The panel includes measured-soma visualization, verified anatomical
+pathways, and bounded live neural measurements.
+
+Historical 1D/2D virtual-cursor experiments use supervised PCA/RBF motor readouts
+and synthetic cursor-relative visual probes. The live desktop probe additionally
+uses color-based target detection and optional host pointer adapters. These are
+diagnostic reservoir/readout experiments, not demonstrations of connectome-internal
+reinforcement learning or the intended fixed motor interface. The panel's QEMU
+guest remains disconnected. No biological plasticity has been implemented.
+
+The separate **pixel → fixed motor baseline** accepts full pixel sequences without
+target detection, coordinate extraction, trained readouts, or graded downstream
+relay overrides. Its default full-network run detects downstream visual state but
+no descending motor response or motion. Blank-screen and disconnected-vision
+controls remain silent. This is an open-loop propagation measurement, not a
+working target-seeking policy. See
+[`docs/pixel-fixed-motor.md`](docs/pixel-fixed-motor.md).
+
+```bash
+uv run python -m flybrain_interface.experiments.pixel_fixed_motor \
+  --output artifacts/pixel-fixed-motor-v1.json
+```
 
 ## Development setup
 

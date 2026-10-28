@@ -1,5 +1,12 @@
 # Anatomically grounded 1D virtual cursor control — 2026-09-21
 
+**Scope clarification (2026-10-28):** this is a supervised motor-readout diagnostic.
+The PCA/RBF decoder learns direction labels outside the biological network. It
+does not meet the project's fixed-decoder baseline or demonstrate reinforcement
+learning inside MaleCNS. The results below remain historical measurements. See
+[the pixel/fixed motor baseline](pixel-fixed-motor.md) for the separate canonical
+propagation experiment.
+
 ## Milestone
 
 The project now demonstrates closed-loop horizontal cursor control driven by MaleCNS
@@ -138,9 +145,9 @@ The cursor is no longer being driven by:
 Instead, the action comes from a lightweight trainable readout over the temporal state of
 an anatomically constrained MaleCNS descending-neuron reservoir.
 
-The readout is still artificial and trainable, which is consistent with the project
-design: the fixed connectome acts as the biological reservoir while small readouts can
-learn task-specific control.
+The readout is artificial and trained using direction labels. This establishes a
+reservoir/readout comparison; it does not establish the intended architecture in
+which learning occurs inside the connectome and the motor decoder stays fixed.
 
 ## Next step
 

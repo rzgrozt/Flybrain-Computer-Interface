@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "name": "pixel-fixed-motor-v1",
+  "base_config": "configs/spatial-graded-lamina-v1.json",
+  "motor_config": "configs/spatial-motor-candidate-readout-v1.json",
+  "normalized_data_manifest": "data/manifests/malecns-v1.0-normalized-v2.json",
+  "limits": {"max_frames": 60, "max_pixels_per_frame": 65536},
+  "motor_chunk_ms": 20.0,
+  "decoder": {
+    "left_population": "steer_left",
+    "right_population": "steer_right",
+    "up_population": "forward",
+    "down_population": "backward",
+    "gain": 0.01,
+    "max_delta": 1.0
+  }
+}
